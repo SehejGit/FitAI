@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exercise Form Analyzer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Exercise Form Analyzer</h1>
+        <p>Upload a video of your exercise to get form feedback</p>
+        
+        <div class="upload-form">
+            <form id="upload-form" action="/upload" method="post" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="exercise-type">Select Exercise Type:</label>
+                    <select id="exercise-type" name="exercise_type" required>
+                        <option value="pushup">Push-up</option>
+                        <option value="curl">Bicep Curl</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="video-file">Select Video File:</label>
+                    <input type="file" id="video-file" name="video" accept=".mp4,.mov,.avi" required>
+                </div>
+                
+                <div class="form-group">
+                    <button type="submit" id="submit-btn">Analyze</button>
+                </div>
+            </form>
+        </div>
+        
+        <div class="tips">
+            <h2>Video Recording Tips</h2>
+            <ul>
+                <li>Record in a well-lit area with a plain background</li>
+                <li>Position the camera to see your full body from the side</li>
+                <li>Wear fitted clothing to allow better pose detection</li>
+                <li>Make sure your entire body is visible throughout the exercise</li>
+            </ul>
+        </div>
+        
+        <div class="loading-overlay" id="loading-overlay">
+            <div class="spinner"></div>
+            <p>Analyzing your form... This may take a minute.</p>
+        </div>
+    </div>
+    
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
