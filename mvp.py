@@ -1,6 +1,18 @@
 import streamlit as st
 import random
 import pandas as pd
+import io
+import json
+import datetime
+import os
+import tempfile
+import importlib
+import sys
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
+import base64
 
 # Set page configuration
 st.set_page_config(
@@ -8,6 +20,25 @@ st.set_page_config(
     page_icon="💪",
     layout="wide"
 )
+
+# Initialize session state for tracking workouts
+if 'saved_workouts' not in st.session_state:
+    st.session_state.saved_workouts = []
+
+if 'current_workout' not in st.session_state:
+    st.session_state.current_workout = None
+
+if 'workout_logs' not in st.session_state:
+    st.session_state.workout_logs = {}
+
+if 'active_tab' not in st.session_state:
+    st.session_state.active_tab = "Generate"
+
+if 'analysis_results' not in st.session_state:
+    st.session_state.analysis_results = None
+
+if 'processed_video_path' not in st.session_state:
+    st.session_state.processed_video_path = None
 
 # Exercise library
 EXERCISE_LIBRARY = {
@@ -37,6 +68,22 @@ EXERCISE_LIBRARY = {
     },
     "cardio": ["Running in place", "High knees", "Jumping jacks", "Shadow boxing", 
                "Treadmill", "Stair climber", "Stationary bike", "Elliptical"]
+}
+
+# Available exercise analysis modules
+# This maps display names to the actual Python module names
+EXERCISE_ANALYSIS_MODULES = {
+    "Push-up": "pushup",
+    "Squat": "squat",
+    "Deadlift": "deadlift",
+    "Plank": "plank",
+    "Lunge": "lunge", 
+    "Bench Press": "bench_press",
+    "Shoulder Press": "shoulder_press",
+    "Pull-up": "pullup",
+    "Bicep Curl": "bicep_curl",
+    "Tricep Extension": "tricep_extension"
+    # Add all your exercise modules here
 }
 
 # Workout plan generator functions
@@ -285,9 +332,6 @@ def create_workout_schedule(exercises, days_per_week, time_per_session, fitness_
                                 })
                             
                             cardio_exercises.remove(exercise)
-                            
-                # Adjust remaining exercise count after adding cardio
-                remaining_exercises = exercises_per_workout - len(workout["exercises"])
             else:
                 # Make a copy to avoid modifying the original
                 area_exercises = exercises[area].copy()
@@ -347,9 +391,420 @@ def create_workout_schedule(exercises, days_per_week, time_per_session, fitness_
     
     return workout_days
 
-# Streamlit app
-def main():
-    # App title
+def create_download_link(pdf_bytes, filename):
+    """Create a download link for the generated PDF"""
+    b64 = base64.b64encode(pdf_bytes).decode()
+    href = f'<a href="data:application/pdf;base64,{b64}" download="{filename}">Download Workout Plan</a>'
+    return href
+
+def generate_pdf(workout_plan, user_data, time_per_session):
+    """Generate PDF from workout plan data"""
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    styles = getSampleStyleSheet()
+    elements = []
+    
+    # Add title
+    title_style = ParagraphStyle(
+        'Title',
+        parent=styles['Heading1'],
+        fontSize=16,
+        alignment=1,  # Center alignment
+        spaceAfter=12
+    )
+    elements.append(Paragraph("Your Personal Workout Plan", title_style))
+    elements.append(Spacer(1, 12))
+    
+    # Add user info
+    user_info_style = ParagraphStyle(
+        'UserInfo',
+        parent=styles['Normal'],
+        fontSize=10,
+        spaceAfter=6
+    )
+    
+    if user_data.get('name'):
+        elements.append(Paragraph(f"Created for: {user_data.get('name')}", user_info_style))
+    
+    elements.append(Paragraph(f"Fitness Goal: {user_data.get('fitness_goal', 'Not specified')}", user_info_style))
+    elements.append(Paragraph(f"Fitness Level: {user_data.get('fitness_level', 'Not specified')}", user_info_style))
+    elements.append(Paragraph(f"Available Equipment: {', '.join(user_data.get('equipment', ['Not specified']))}", user_info_style))
+    
+    if user_data.get('injuries'):
+        elements.append(Paragraph(f"Considerations: {user_data.get('injuries')}", user_info_style))
+    
+    elements.append(Spacer(1, 20))
+    
+    # Add workout schedule
+    heading_style = ParagraphStyle(
+        'Heading',
+        parent=styles['Heading2'],
+        fontSize=14,
+        spaceAfter=6
+    )
+    
+    sub_heading_style = ParagraphStyle(
+        'SubHeading',
+        parent=styles['Heading3'],
+        fontSize=12,
+        spaceAfter=6
+    )
+    
+    for day in workout_plan:
+        # Day header
+        elements.append(Paragraph(f"{day['day']}: {day['name']} Workout", heading_style))
+        
+        # Exercise table
+        data = [["Exercise", "Sets", "Reps", "Rest"]]
+        
+        for exercise in day['exercises']:
+            data.append([
+                exercise['name'],
+                str(exercise['sets']),
+                exercise['reps'],
+                exercise['rest']
+            ])
+        
+        table = Table(data, colWidths=[250, 50, 100, 70])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('ALIGN', (1, 1), (-1, -1), 'CENTER'),
+        ]))
+        elements.append(table)
+        elements.append(Spacer(1, 20))
+    
+    # Add tips section
+    elements.append(Paragraph("Tips for Success", heading_style))
+    
+    tips = [
+        "Start each workout with a 5-minute warm-up (light cardio and dynamic stretching).",
+        "End each workout with a 5-minute cool-down (static stretching).",
+        "Focus on proper form over heavy weights or high reps.",
+        "Track your workouts in a journal or app to monitor progress.",
+        "Stay hydrated before, during, and after your workouts.",
+        "Allow at least 48 hours of rest for muscle groups between workouts.",
+    ]
+    
+    for tip in tips:
+        elements.append(Paragraph(f"• {tip}", styles["Normal"]))
+    
+    # Build PDF
+    doc.build(elements)
+    
+    # Get PDF bytes
+    pdf_bytes = buffer.getvalue()
+    buffer.close()
+    
+    return pdf_bytes
+
+def save_current_workout(plan_name):
+    """Save the current workout plan with a name"""
+    workout_data = {
+        "name": plan_name,
+        "date_created": datetime.datetime.now().strftime("%Y-%m-%d"),
+        "workout_plan": st.session_state.current_workout,
+        "user_data": st.session_state.user_data,
+        "time_per_session": st.session_state.time_per_session
+    }
+    
+    st.session_state.saved_workouts.append(workout_data)
+    st.success(f"Workout plan '{plan_name}' has been saved!")
+    
+def log_workout_completion(workout_index, day_index, notes=""):
+    """Log the completion of a workout day"""
+    workout = st.session_state.saved_workouts[workout_index]
+    workout_name = workout["name"]
+    day = workout["workout_plan"][day_index]["day"]
+    
+    # Create a unique key for this workout plan
+    if workout_name not in st.session_state.workout_logs:
+        st.session_state.workout_logs[workout_name] = []
+    
+    # Add log entry
+    log_entry = {
+        "date": datetime.datetime.now().strftime("%Y-%m-%d"),
+        "day": day,
+        "notes": notes
+    }
+    
+    st.session_state.workout_logs[workout_name].append(log_entry)
+    
+    return True
+
+def run_exercise_analysis(video_file, exercise_type, output_path=None):
+    """
+    Import and run the appropriate exercise analysis module
+    
+    Args:
+        video_file: Uploaded video file from Streamlit
+        exercise_type: Type of exercise to analyze
+        output_path: Path to save processed video
+        
+    Returns:
+        dict: Analysis results from the exercise module
+    """
+    # Get the module name for the selected exercise
+    if exercise_type in EXERCISE_ANALYSIS_MODULES:
+        module_name = EXERCISE_ANALYSIS_MODULES[exercise_type]
+    else:
+        return {"error": f"No analysis module found for {exercise_type}"}
+    
+    # Create a temporary file to store the uploaded video
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as temp_file:
+        temp_file.write(video_file.read())
+        video_path = temp_file.name
+    
+    try:
+        # Dynamically import the exercise module
+        # First, make sure the module's directory is in the Python path
+        # Assuming the modules are in a directory called 'exercise_modules'
+        exercise_module_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'exercise_modules')
+        
+        if exercise_module_dir not in sys.path:
+            sys.path.append(exercise_module_dir)
+        
+        # Import the module
+        try:
+            module = importlib.import_module(module_name)
+            
+            # Call the main analysis function
+            # Most modules should have an analyze_X function where X is the exercise name
+            if hasattr(module, f'analyze_{module_name}'):
+                analysis_function = getattr(module, f'analyze_{module_name}')
+            elif hasattr(module, 'analyze_exercise'):
+                analysis_function = getattr(module, 'analyze_exercise')
+            elif hasattr(module, 'analyze_video'):
+                analysis_function = getattr(module, 'analyze_video')
+            else:
+                # If we can't find a standard function name, try to find any function with 'analyze' in the name
+                analyze_functions = [f for f in dir(module) if 'analyze' in f.lower() and callable(getattr(module, f))]
+                
+                if analyze_functions:
+                    analysis_function = getattr(module, analyze_functions[0])
+                else:
+                    return {"error": f"Could not find analysis function in {module_name} module"}
+            
+            # Call the analyze function
+            result = analysis_function(video_path, output_path)
+            
+            # Clean up the temporary file
+            try:
+                os.unlink(video_path)
+            except:
+                pass
+                
+            return result
+            
+        except ImportError as e:
+            return {"error": f"Could not import {module_name} module: {str(e)}"}
+        except Exception as e:
+            return {"error": f"Error running analysis: {str(e)}"}
+            
+    except Exception as e:
+        return {"error": f"Error setting up analysis: {str(e)}"}
+
+# Form analysis tab function
+def form_analysis_tab():
+    st.title("📹 Workout Form Analysis")
+    st.subheader("Upload a video to get feedback on your exercise form")
+    
+    # Exercise selection - show the list of available exercise modules
+    exercise_type = st.selectbox(
+        "Select exercise to analyze", 
+        list(EXERCISE_ANALYSIS_MODULES.keys()),
+        index=0
+    )
+    
+    # Exercise instructions - these could be loaded from the modules themselves
+    with st.expander("How to record your video for best results"):
+        if exercise_type == "Push-up":
+            st.markdown("""
+            ### Push-up Video Tips
+            1. **Camera Position**: Place your camera at side view, approximately 3-4 feet away.
+            2. **Lighting**: Ensure the area is well-lit to improve pose detection.
+            3. **Clothing**: Wear form-fitting clothing that contrasts with the background.
+            4. **Frame**: Make sure your entire body is in the frame throughout the movement.
+            5. **Speed**: Perform the push-ups at a controlled pace.
+            6. **Repetitions**: Try to complete at least 3-5 repetitions for the best analysis.
+            """)
+        elif exercise_type == "Squat":
+            st.markdown("""
+            ### Squat Video Tips
+            1. **Camera Position**: Place your camera at side view, approximately 5-6 feet away.
+            2. **Lighting**: Ensure the area is well-lit to improve pose detection.
+            3. **Clothing**: Wear form-fitting clothing that contrasts with the background.
+            4. **Frame**: Make sure your entire body is in the frame throughout the movement.
+            5. **Speed**: Perform the squats at a controlled pace.
+            6. **Repetitions**: Try to complete at least 3-5 repetitions for the best analysis.
+            """)
+        else:
+            st.markdown(f"""
+            ### {exercise_type} Video Tips
+            1. **Camera Position**: Place your camera at a position where your full body and movement are visible.
+            2. **Lighting**: Ensure the area is well-lit to improve pose detection.
+            3. **Clothing**: Wear form-fitting clothing that contrasts with the background.
+            4. **Frame**: Make sure your entire body is in the frame throughout the movement.
+            5. **Speed**: Perform the exercise at a controlled pace.
+            6. **Repetitions**: Try to complete at least 3-5 repetitions for the best analysis.
+            """)
+    
+    # Video upload section
+    uploaded_file = st.file_uploader("Upload your exercise video", type=['mp4', 'mov', 'avi'])
+    
+    if uploaded_file is not None:
+        # Create output path for processed video
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmpfile:
+            output_path = tmpfile.name
+        
+        # Run analysis with a progress indicator
+        with st.spinner(f"Analyzing your {exercise_type.lower()} form..."):
+            # Run the appropriate module's analysis function
+            analysis_results = run_exercise_analysis(
+                uploaded_file, 
+                exercise_type, 
+                output_path=output_path
+            )
+            
+            # Store results in session state
+            st.session_state.analysis_results = analysis_results
+            st.session_state.processed_video_path = output_path
+        
+        # Display results
+        if "error" in analysis_results:
+            st.error(analysis_results["error"])
+        else:
+            st.success("Analysis complete!")
+            
+            # Check if the output video file exists and has content
+            if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+                # Display processed video
+                video_file = open(output_path, 'rb')
+                video_bytes = video_file.read()
+                st.video(video_bytes)
+            else:
+                st.warning("No processed video was generated. Showing analysis results only.")
+            
+            # Create two columns for results display
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.subheader("Performance Summary")
+                
+                # Display metrics based on what's available in the results
+                if "count" in analysis_results:
+                    st.metric("Repetitions Counted", analysis_results["count"])
+                
+                if "form_analysis" in analysis_results:
+                    form = analysis_results["form_analysis"]
+                    
+                    # Display metrics based on exercise type and available data
+                    if exercise_type == "Push-up":
+                        if "body_alignment_score" in form:
+                            st.metric("Body Alignment", f"{form['body_alignment_score']:.1f}%")
+                        if "elbow_angle_at_bottom" in form:
+                            st.metric("Elbow Angle (Bottom)", f"{form['elbow_angle_at_bottom']:.1f}°")
+                    elif exercise_type == "Squat":
+                        if "depth_score" in form:
+                            st.metric("Depth Score", f"{form['depth_score']:.1f}%")
+                        if "knee_angle_at_bottom" in form:
+                            st.metric("Knee Angle (Bottom)", f"{form['knee_angle_at_bottom']:.1f}°")
+                    
+                    # Display any other metrics that might be in the results
+                    for key, value in form.items():
+                        if key not in ["body_alignment_score", "elbow_angle_at_bottom", "depth_score", "knee_angle_at_bottom", "frames_analyzed"]:
+                            # Format the metric name for display
+                            metric_name = " ".join(word.capitalize() for word in key.split("_"))
+                            
+                            # Format the value based on its type
+                            if isinstance(value, float):
+                                formatted_value = f"{value:.1f}"
+                                # Add units if we can infer them
+                                if "angle" in key.lower():
+                                    formatted_value += "°"
+                                elif "score" in key.lower() or "percentage" in key.lower():
+                                    formatted_value += "%"
+                            else:
+                                formatted_value = str(value)
+                                
+                            st.metric(metric_name, formatted_value)
+            
+            with col2:
+                st.subheader("Feedback & Tips")
+                
+                # Display feedback from the analysis
+                if "feedback" in analysis_results:
+                    for feedback in analysis_results["feedback"]:
+                        st.markdown(f"- {feedback}")
+                
+                # Add general tips based on exercise
+                st.markdown("### General Tips")
+                if exercise_type == "Push-up":
+                    st.markdown("""
+                    - Keep your core tight throughout the movement
+                    - Breathe out as you push up, breathe in as you lower down
+                    - Focus on quality rather than quantity
+                    - For more challenge, try diamond push-ups or decline push-ups
+                    """)
+                elif exercise_type == "Squat":
+                    st.markdown("""
+                    - Keep your weight in your heels
+                    - Push your knees outward as you descend
+                    - Breathe in as you lower, breathe out as you rise
+                    - Focus on controlled movement rather than speed
+                    - For more challenge, try holding weights or single-leg variations
+                    """)
+                else:
+                    # Generic tips
+                    st.markdown("""
+                    - Focus on proper form over speed or repetitions
+                    - Control your breathing with the exercise rhythm
+                    - Engage your core throughout the movement
+                    - Record yourself regularly to track improvements
+                    """)
+            
+            # Option to save this analysis to workout log
+            st.subheader("Log This Workout")
+            log_notes = st.text_area("Add notes about this workout session:", 
+                                    placeholder="How did it feel? What was challenging?")
+            
+            # Only show this option if there are saved workouts
+            if st.session_state.saved_workouts:
+                workout_options = [workout["name"] for workout in st.session_state.saved_workouts]
+                selected_workout = st.selectbox("Add to workout plan:", ["-- Select a workout plan --"] + workout_options)
+                
+                if st.button("Log Exercise Session") and selected_workout != "-- Select a workout plan --":
+                    # Find the selected workout
+                    workout_index = workout_options.index(selected_workout)
+                    
+                    # Create a log entry for this workout
+                    if selected_workout not in st.session_state.workout_logs:
+                        st.session_state.workout_logs[selected_workout] = []
+                    
+                    # Add log entry
+                    log_entry = {
+                        "date": datetime.datetime.now().strftime("%Y-%m-%d"),
+                        "exercise": exercise_type,
+                        "reps": analysis_results.get("count", 0),
+                        "notes": log_notes
+                    }
+                    
+                    st.session_state.workout_logs[selected_workout].append(log_entry)
+                    st.success(f"Logged {analysis_results.get('count', 0)} {exercise_type} repetitions to {selected_workout}!")
+            else:
+                st.info("Create a workout plan in the 'Generate' tab to log this exercise session.")
+    else:
+        # Placeholder for video upload
+        st.info("Upload a video to analyze your exercise form. Make sure you're visible in the frame and performing the exercise from the side view for best results.")
+        
+# Tab functions
+def generate_workout_tab():
     st.title("💪 Fitness Buddy")
     st.subheader("Get a personalized weekly workout plan")
     
@@ -368,18 +823,18 @@ def main():
     with col2:
         st.subheader("Fitness Goals & Preferences")
         fitness_goal = st.selectbox("Primary Fitness Goal", 
-                                   ["Weight Loss", "Muscle Gain", "Endurance", "General Fitness", "Strength"])
+                                 ["Weight Loss", "Muscle Gain", "Endurance", "General Fitness", "Strength"])
         fitness_level = st.selectbox("Fitness Level", ["Beginner", "Intermediate", "Advanced"])
         days_per_week = st.slider("Days Available Per Week", min_value=2, max_value=6, value=3)
         time_per_session = st.select_slider("Time Available Per Session (minutes)", 
-                                           options=[30, 45, 60, 90], value=45)
+                                       options=[30, 45, 60, 90], value=45)
         injuries = st.text_area("Any Injuries or Limitations?", placeholder="E.g., knee pain, shoulder issues...")
         preferences = st.text_area("Personal Preferences", placeholder="E.g., prefer cardio, hate lunges...")
     
     # Equipment selection
     st.subheader("Available Equipment")
     equipment_options = ["None (bodyweight only)", "Dumbbells", "Resistance bands", 
-                        "Kettlebells", "Pull-up bar", "Bench", "Full gym access"]
+                      "Kettlebells", "Pull-up bar", "Bench", "Full gym access"]
     equipment = st.multiselect("Select available equipment", equipment_options)
     
     # Generate workout button
@@ -390,6 +845,17 @@ def main():
         # Generate the workout plan
         selected_exercises = determine_exercises(equipment, fitness_goal, fitness_level, injuries)
         workout_plan = create_workout_schedule(selected_exercises, days_per_week, time_per_session, fitness_level)
+        
+        # Store workout plan in session state
+        st.session_state.current_workout = workout_plan
+        st.session_state.user_data = {
+            'name': name,
+            'fitness_goal': fitness_goal,
+            'fitness_level': fitness_level,
+            'equipment': equipment,
+            'injuries': injuries
+        }
+        st.session_state.time_per_session = time_per_session
         
         # Display the workout plan
         st.subheader("Your Personalized Weekly Workout Plan")
@@ -505,21 +971,192 @@ def main():
             for tip in goal_tips:
                 st.markdown(f"- {tip}")
         
-        # Add a section for tracking progress
-        st.subheader("Tracking Your Progress")
-        st.markdown("""
-        For best results, keep track of your workouts. Record:
-        - Weights used
-        - Reps completed
-        - How you felt during/after the workout
-        - Any exercises you want to modify
+        # Add save workout option
+        st.subheader("Save This Workout Plan")
+        plan_name = st.text_input("Name for this workout plan:", placeholder="E.g., Summer Muscle Plan")
         
-        Aim to progressively increase either weight, reps, or sets each week for continued improvement.
-        """)
+        if st.button("Save Workout Plan"):
+            if plan_name:
+                save_current_workout(plan_name)
+                st.success(f"Workout plan '{plan_name}' saved! Go to the 'My Workouts' tab to view it.")
+            else:
+                st.error("Please enter a name for your workout plan.")
         
-        # Download option (placeholder)
+        # PDF Download button
         if st.button("Download Workout Plan as PDF"):
-            st.warning("This feature would generate a PDF in a production app. For now, you can take screenshots of your workout plan.")
+            # Generate PDF
+            pdf_bytes = generate_pdf(
+                workout_plan=st.session_state.current_workout,
+                user_data=st.session_state.user_data,
+                time_per_session=st.session_state.time_per_session
+            )
+            
+            # Create a download button instead of a link
+            st.download_button(
+                label="📥 Click here to download your workout plan",
+                data=pdf_bytes,
+                file_name="workout_plan.pdf",
+                mime="application/pdf"
+            )
+            st.success("Your workout plan PDF is ready! Click the button above to download.")
+
+def my_workouts_tab():
+    st.title("My Saved Workout Plans")
+    
+    if not st.session_state.saved_workouts:
+        st.info("You haven't saved any workout plans yet. Go to the 'Generate' tab to create one!")
+        return
+    
+    # Display saved workouts
+    for i, workout in enumerate(st.session_state.saved_workouts):
+        with st.expander(f"{workout['name']} - Created: {workout['date_created']}"):
+            st.subheader(f"{workout['name']} Details")
+            st.write(f"**Goal:** {workout['user_data']['fitness_goal']}")
+            st.write(f"**Level:** {workout['user_data']['fitness_level']}")
+            st.write(f"**Equipment:** {', '.join(workout['user_data']['equipment'])}")
+            st.write(f"**Session Duration:** {workout['time_per_session']} minutes")
+            
+            # Display workout days in tabs
+            day_tabs = st.tabs([f"Day {j+1}: {day['name']}" for j, day in enumerate(workout['workout_plan'])])
+            
+            for j, tab in enumerate(day_tabs):
+                with tab:
+                    day = workout['workout_plan'][j]
+                    st.markdown(f"### {day['name']} Workout")
+                    
+                    # Create DataFrame for exercises
+                    exercises_df = pd.DataFrame([
+                        {
+                            "Exercise": ex["name"],
+                            "Sets": ex["sets"],
+                            "Reps": ex["reps"],
+                            "Rest": ex["rest"]
+                        } for ex in day["exercises"]
+                    ])
+                    
+                    st.table(exercises_df)
+                    
+                    # Log completion button for this day
+                    notes = st.text_area(f"Workout Notes (Day {j+1})", key=f"notes_{i}_{j}", 
+                                         placeholder="Enter notes about your workout (weights used, how you felt, etc.)")
+                    
+                    if st.button(f"Log Completion (Day {j+1})", key=f"log_{i}_{j}"):
+                        if log_workout_completion(i, j, notes):
+                            st.success(f"Workout Day {j+1} logged successfully!")
+            
+            # Generate PDF for this saved workout
+            if st.button(f"Download as PDF", key=f"pdf_{i}"):
+                pdf_bytes = generate_pdf(
+                    workout_plan=workout['workout_plan'],
+                    user_data=workout['user_data'],
+                    time_per_session=workout['time_per_session']
+                )
+                
+                st.download_button(
+                    label=f"📥 Download {workout['name']} as PDF",
+                    data=pdf_bytes,
+                    file_name=f"{workout['name'].replace(' ', '_').lower()}_workout.pdf",
+                    mime="application/pdf",
+                    key=f"download_{i}"
+                )
+
+def progress_tracking_tab():
+    st.title("Workout Progress Tracker")
+    
+    if not st.session_state.workout_logs:
+        st.info("You haven't logged any workouts yet. Go to 'My Workouts' tab to log your completed workouts!")
+        return
+    
+    # Display progress metrics
+    st.subheader("Workout Completion Statistics")
+    
+    # Calculate statistics
+    total_workouts = sum(len(logs) for logs in st.session_state.workout_logs.values())
+    current_week_workouts = sum(
+        1 for logs in st.session_state.workout_logs.values() 
+        for log in logs 
+        if (datetime.datetime.now() - datetime.datetime.strptime(log['date'], "%Y-%m-%d")).days <= 7
+    )
+    
+    # Create metrics
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.metric("Total Workouts Completed", total_workouts)
+    
+    with col2:
+        st.metric("This Week's Workouts", current_week_workouts)
+        
+    with col3:
+        if total_workouts > 0:
+            st.metric("Workout Plans Used", len(st.session_state.workout_logs))
+        else:
+            st.metric("Workout Plans Used", 0)
+    
+    # Display workout history
+    st.subheader("Workout History")
+    
+    # Create a table with all logged workouts
+    if total_workouts > 0:
+        log_data = []
+        
+        for plan_name, logs in st.session_state.workout_logs.items():
+            for log in logs:
+                log_entry = {
+                    "Date": log["date"],
+                    "Workout Plan": plan_name,
+                }
+                
+                # Add day or exercise info based on what's available
+                if "day" in log:
+                    log_entry["Activity"] = log["day"]
+                elif "exercise" in log:
+                    log_entry["Activity"] = log["exercise"]
+                    if "reps" in log:
+                        log_entry["Reps"] = log["reps"]
+                else:
+                    log_entry["Activity"] = "Workout"
+                
+                log_entry["Notes"] = log["notes"] if log["notes"] else "-"
+                log_data.append(log_entry)
+        
+        # Convert to DataFrame and sort by date (most recent first)
+        log_df = pd.DataFrame(log_data)
+        log_df = log_df.sort_values("Date", ascending=False)
+        
+        # Display as table
+        st.dataframe(log_df, hide_index=True)
+        
+        # Option to download workout history
+        if st.button("Download Workout History"):
+            # Convert DataFrame to CSV
+            csv = log_df.to_csv(index=False)
+            
+            st.download_button(
+                label="📥 Download Workout History CSV",
+                data=csv,
+                file_name="workout_history.csv",
+                mime="text/csv"
+            )
+    else:
+        st.info("No workout history to display yet.")
+
+# Main app
+def main():
+    # Create tabs
+    tab1, tab2, tab3, tab4 = st.tabs(["Generate", "My Workouts", "Progress Tracker", "Form Analysis"])
+    
+    with tab1:
+        generate_workout_tab()
+    
+    with tab2:
+        my_workouts_tab()
+    
+    with tab3:
+        progress_tracking_tab()
+        
+    with tab4:
+        form_analysis_tab()
 
 if __name__ == "__main__":
     main()
