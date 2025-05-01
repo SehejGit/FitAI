@@ -33,12 +33,23 @@ A web application that analyzes exercise form from uploaded videos using compute
    pip install -r requirements.txt
    ```
 
-3. Run the application:
+3. Navigate to frontend
+
+    ```
+    cd FitAI/frontend
+    ```
+
+4. Install frontend dependencies:
    ```
-   python app.py
+   npm install
    ```
 
-4. Open a web browser and navigate to:
+5. Start the frontend server:
+    ```
+    npm start
+    ```
+
+6. Open a web browser and navigate to:
    ```
    http://localhost:5000
    ```
