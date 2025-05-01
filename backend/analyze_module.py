@@ -9,6 +9,16 @@ mp_drawing = mp.solutions.drawing_utils
 pose = mp_pose.Pose(static_image_mode=False, min_detection_confidence=0.5)
 
 def analyze_pushup(video_path, output_video_path=None):
+    """
+    Analyzes pushup form from a video using MediaPipe pose detection.
+    
+    Args:
+        video_path (str): Path to the input video file
+        output_video_path (str, optional): Path where the analyzed video will be saved
+        
+    Returns:
+        dict: Analysis results including pushup count, form metrics, and feedback
+    """
     cap = cv2.VideoCapture(video_path)
     frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -207,18 +217,3 @@ def analyze_pushup(video_path, output_video_path=None):
         feedback["feedback"].append("Great form! Your pushups have good depth and body alignment.")
         
     return feedback
-
-# Example usage
-result = analyze_pushup("clips/pushups.MOV", "clips/analyzed_pushup.mp4")
-print("\n=== ANALYSIS RESULTS ===")
-print(f"Counted {result.get('pushup_count', 0)} pushups")
-if "error" in result:
-    print(f"Error: {result['error']}")
-elif "form_analysis" in result:
-    print(f"Body alignment score: {result['form_analysis']['body_alignment_score']:.1f}%")
-    print(f"Lowest elbow angle: {result['form_analysis']['elbow_angle_at_bottom']:.1f}°")
-    print(f"Highest elbow angle: {result['form_analysis']['elbow_angle_at_top']:.1f}°")
-    print(f"Frames analyzed: {result['form_analysis']['frames_analyzed']}")
-    print("\nFeedback:")
-    for item in result["feedback"]:
-        print(f"- {item}")
