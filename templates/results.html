@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exercise Analysis Results</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Exercise Analysis Results</h1>
+        
+        {% if 'error' in result %}
+        <div class="error-message">
+            <h2>Analysis Error</h2>
+            <p>{{ result.error }}</p>
+            <a href="/" class="btn">Try Again</a>
+        </div>
+        {% else %}
+        <div class="results-container">
+            <div class="video-container">
+                <h2>Analyzed Video</h2>
+                <video controls width="100%">
+                    <source src="{{ video_url }}" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+            </div>
+            
+            <div class="analysis-results">
+                <h2>{{ exercise_type.title() }} Analysis</h2>
+                
+                <div class="stat-card">
+                    {% if exercise_type == 'pushup' %}
+                    <h3>Reps Counted: {{ result.pushup_count }}</h3>
+                    {% else %}
+                    <h3>Reps Counted: {{ result.curl_count }}</h3>
+                    {% endif %}
+                </div>
+                
+                <div class="metrics">
+                    <h3>Form Metrics</h3>
+                    {% if exercise_type == 'pushup' %}
+                    <div class="metric">
+                        <span class="metric-label">Body Alignment:</span>
+                        <span class="metric-value">{{ "%.1f"|format(result.form_analysis.body_alignment_score) }}%</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Lowest Elbow Angle:</span>
+                        <span class="metric-value">{{ "%.1f"|format(result.form_analysis.elbow_angle_at_bottom) }}°</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Highest Elbow Angle:</span>
+                        <span class="metric-value">{{ "%.1f"|format(result.form_analysis.elbow_angle_at_top) }}°</span>
+                    </div>
+                    {% else %}
+                    <div class="metric">
+                        <span class="metric-label">Curl Depth:</span>
+                        <span class="metric-value">{{ "%.1f"|format(result.form_analysis.curl_depth) }}°</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Full Arm Extension:</span>
+                        <span class="metric-value">{{ "Yes" if result.form_analysis.full_extension else "No" }}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Shoulder Stability:</span>
+                        <span class="metric-value">{{ "%.1f"|format(result.form_analysis.shoulder_stability) }}%</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Wrist Stability:</span>
+                        <span class="metric-value">{{ "%.1f"|format(result.form_analysis.wrist_stability) }}%</span>
+                    </div>
+                    {% endif %}
+                    <div class="metric">
+                        <span class="metric-label">Frames Analyzed:</span>
+                        <span class="metric-value">{{ result.form_analysis.frames_analyzed }}</span>
+                    </div>
+                </div>
+                
+                <div class="feedback">
+                    <h3>Personalized Feedback</h3>
+                    <ul>
+                        {% for item in result.feedback %}
+                        <li>{{ item }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                
+                <a href="/" class="btn">Analyze Another Video</a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>

@@ -1,3 +1,5 @@
 *.mov
 *.mp4
 *.DS_Store
+clips/
+node_modules/
