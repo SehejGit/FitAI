@@ -6,6 +6,7 @@ import {
   Select,
   MenuItem,
   FormControl,
+  GridLegacy,
   InputLabel,
   Box,
   Slider,
@@ -17,8 +18,6 @@ import {
   SelectChangeEvent,
   OutlinedInput
 } from '@mui/material';
-// Import GridLegacy instead of Grid
-import { GridLegacy } from '@mui/material';
 
 interface UserInfoFormProps {
   onGenerateWorkout: (formData: UserInfo) => void;
