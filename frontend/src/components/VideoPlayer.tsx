@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -19,21 +19,26 @@ import {
   ListItemText,
 } from '@mui/material';
 
-// Correct icon imports from @mui/icons-material
+// Icon imports
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import FileUploadIcon from '@mui/icons-material/FileUpload';
 import PlayCircleIcon from '@mui/icons-material/PlayCircle';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import FeedbackIcon from '@mui/icons-material/Feedback';
+import VideoLibraryIcon from '@mui/icons-material/VideoLibrary';
 
-// Mock function to get video URL for an exercise
+// Import the video analysis module
+import { analyzeExerciseForm } from '../utils/videoAnalysis';
+
+// Function to get example video URL for an exercise
 const getExerciseVideoUrl = (exerciseName: string): string => {
   // In a real app, this would map to actual exercise videos
   // For now, we'll use placeholder videos
   const placeholderVideos: {[key: string]: string} = {
     "default": "https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4",
     "Push-ups": "https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4",
+    "Pike push-ups": "https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4",
     "Squats": "https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4",
     "Planks": "https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4",
     "Burpees": "https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4",
@@ -43,28 +48,14 @@ const getExerciseVideoUrl = (exerciseName: string): string => {
   return placeholderVideos[exerciseName] || placeholderVideos.default;
 };
 
-// Mock function to analyze video
-const analyzeExerciseForm = (videoBlob: Blob, exerciseName: string): Promise<any> => {
-  // In a real app, this would call an AI service to analyze the form
-  return new Promise((resolve) => {
-    // Simulate API call delay
-    setTimeout(() => {
-      // Return mock analysis results
-      resolve({
-        score: Math.floor(Math.random() * 40) + 60, // Random score between 60-100
-        feedback: [
-          "Good overall form and technique",
-          "Keep your back straight throughout the movement",
-          "Try to maintain a consistent pace",
-          "Focus on full range of motion"
-        ]
-      });
-    }, 2000);
-  });
-};
-
 interface VideoPlayerProps {
   // You could pass workout data here if needed
+}
+
+interface AnalysisResults {
+  score: number;
+  feedback: string[];
+  annotatedVideoUrl?: string;
 }
 
 const VideoPlayer: React.FC<VideoPlayerProps> = () => {
@@ -72,11 +63,23 @@ const VideoPlayer: React.FC<VideoPlayerProps> = () => {
   const navigate = useNavigate();
   const [uploadedVideo, setUploadedVideo] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisResults, setAnalysisResults] = useState<any>(null);
+  const [analysisResults, setAnalysisResults] = useState<AnalysisResults | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [showAnnotatedVideo, setShowAnnotatedVideo] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoFileRef = useRef<File | null>(null);
   
   const decodedExercise = exercise ? decodeURIComponent(exercise) : '';
   const videoUrl = getExerciseVideoUrl(decodedExercise);
+  
+  // Reset state when exercise changes
+  useEffect(() => {
+    setUploadedVideo(null);
+    setAnalysisResults(null);
+    setAnalysisError(null);
+    setShowAnnotatedVideo(false);
+    videoFileRef.current = null;
+  }, [exercise]);
   
   const handleUploadClick = () => {
     if (fileInputRef.current) {
@@ -89,31 +92,52 @@ const VideoPlayer: React.FC<VideoPlayerProps> = () => {
     if (file && file.type.startsWith('video/')) {
       const videoUrl = URL.createObjectURL(file);
       setUploadedVideo(videoUrl);
-      setAnalysisResults(null); // Clear previous results
+      videoFileRef.current = file;
+      setAnalysisResults(null);
+      setAnalysisError(null);
+      setShowAnnotatedVideo(false);
     }
   };
   
   const handleAnalyzeVideo = async () => {
-    if (!uploadedVideo) return;
+    if (!uploadedVideo || !videoFileRef.current) return;
     
     setIsAnalyzing(true);
+    setAnalysisError(null);
     
     try {
-      // In a real app, you would fetch the video blob and send it to your API
-      const response = await fetch(uploadedVideo);
-      const blob = await response.blob();
+      // Convert File to Blob for analysis
+      const blob = await videoFileRef.current.arrayBuffer().then(buffer => new Blob([buffer], { type: videoFileRef.current?.type }));
       
+      // Call the analysis function from our module
       const results = await analyzeExerciseForm(blob, decodedExercise);
       setAnalysisResults(results);
+      
+      // Automatically show the annotated video when analysis is complete
+      if (results.annotatedVideoUrl) {
+        setShowAnnotatedVideo(true);
+      }
     } catch (error) {
       console.error('Error analyzing video:', error);
+      setAnalysisError(typeof error === 'string' ? error : (error as Error).message || 'Failed to analyze video');
     } finally {
       setIsAnalyzing(false);
     }
   };
   
+  const handleToggleVideo = () => {
+    setShowAnnotatedVideo(!showAnnotatedVideo);
+  };
+  
   const handleGoBack = () => {
     navigate(-1); // Go back to previous page
+  };
+  
+  // Calculate color based on score
+  const getScoreColor = (score: number) => {
+    if (score >= 80) return "success.main";
+    if (score >= 60) return "warning.main";
+    return "error.main";
   };
   
   return (
@@ -187,32 +211,60 @@ const VideoPlayer: React.FC<VideoPlayerProps> = () => {
                     <CardMedia
                       component="video"
                       controls
-                      src={uploadedVideo}
+                      src={showAnnotatedVideo && analysisResults?.annotatedVideoUrl ? analysisResults.annotatedVideoUrl : uploadedVideo}
                       sx={{ width: '100%', height: '300px', mb: 2 }}
                     />
                     
-                    <Button
-                      variant="contained"
-                      color="secondary"
-                      startIcon={<PlayCircleIcon />}
-                      onClick={handleAnalyzeVideo}
-                      disabled={isAnalyzing}
-                      fullWidth
-                    >
-                      Analyze My Form
-                    </Button>
+                    {analysisResults?.annotatedVideoUrl && (
+                      <Box sx={{ mb: 2, display: 'flex', justifyContent: 'center' }}>
+                        <Button
+                          variant="contained"
+                          color={showAnnotatedVideo ? "success" : "primary"}
+                          startIcon={<VideoLibraryIcon />}
+                          onClick={handleToggleVideo}
+                          sx={{ borderRadius: 28 }}
+                        >
+                          {showAnnotatedVideo ? "Show Original Video" : "Show Annotated Video"}
+                        </Button>
+                      </Box>
+                    )}
+                    
+                    {!analysisResults && !isAnalyzing && (
+                      <Button
+                        variant="contained"
+                        color="secondary"
+                        startIcon={<PlayCircleIcon />}
+                        onClick={handleAnalyzeVideo}
+                        disabled={isAnalyzing}
+                        fullWidth
+                      >
+                        Analyze My Form
+                      </Button>
+                    )}
                     
                     {isAnalyzing && (
-                      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-                        <CircularProgress />
+                      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 2 }}>
+                        <CircularProgress sx={{ mb: 2 }} />
+                        <Typography variant="body2" color="text.secondary">
+                          Analyzing your form... This may take a minute.
+                        </Typography>
                       </Box>
+                    )}
+                    
+                    {analysisError && (
+                      <Alert severity="error" sx={{ mt: 2 }}>
+                        {analysisError}
+                      </Alert>
                     )}
                   </>
                 )}
               </CardContent>
             </Card>
             
-            {/* Analysis Results */}
+            
+          </GridLegacy>
+        </GridLegacy>
+        {/* Analysis Results */}
             {analysisResults && (
               <Card sx={{ mt: 2 }}>
                 <CardContent>
@@ -226,7 +278,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = () => {
                     </Typography>
                     <Typography 
                       variant="h5" 
-                      color={analysisResults.score >= 80 ? "success.main" : "warning.main"}
+                      color={getScoreColor(analysisResults.score)}
                     >
                       {analysisResults.score}%
                     </Typography>
@@ -239,7 +291,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = () => {
                   </Typography>
                   
                   <List>
-                    {analysisResults.feedback.map((item: string, index: number) => (
+                    {analysisResults.feedback.map((item, index) => (
                       <ListItem key={index} sx={{ py: 0.5 }}>
                         <ListItemIcon>
                           <FeedbackIcon color="primary" />
@@ -257,20 +309,26 @@ const VideoPlayer: React.FC<VideoPlayerProps> = () => {
                     >
                       Great job! Your form looks excellent.
                     </Alert>
-                  ) : (
+                  ) : analysisResults.score >= 60 ? (
                     <Alert 
                       icon={<ErrorIcon />} 
                       severity="warning"
                       sx={{ mt: 2 }}
                     >
-                      Keep practicing! Review the feedback to improve your form.
+                      Good effort! Review the feedback to improve your form.
+                    </Alert>
+                  ) : (
+                    <Alert 
+                      icon={<ErrorIcon />} 
+                      severity="error"
+                      sx={{ mt: 2 }}
+                    >
+                      Keep practicing! There are some key form issues to address.
                     </Alert>
                   )}
                 </CardContent>
               </Card>
             )}
-          </GridLegacy>
-        </GridLegacy>
       </Paper>
     </Box>
   );
