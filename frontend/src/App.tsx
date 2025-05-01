@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { useState } from 'react';
 import './App.css';
-import { Container, Typography, Box, Button } from '@mui/material';
+import { Container, Typography, Box } from '@mui/material';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import UserInfoForm from './components/UserInfoForm';
 import WorkoutPlan from './components/WorkoutPlan';
