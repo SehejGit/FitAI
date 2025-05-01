@@ -92,7 +92,7 @@ const WorkoutPlan: React.FC<WorkoutPlanProps> = ({ workoutDays }) => {
 
   return (
     <Box sx={{ width: '100%' }}>
-      <Paper elevation={3} sx={{ mb: 4 }}>
+      <Paper elevation={3} sx={{ p: 6, mb: 5 }}>
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
           <Tabs 
             value={value} 

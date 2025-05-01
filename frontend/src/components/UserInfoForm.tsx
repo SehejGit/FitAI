@@ -115,12 +115,12 @@ const UserInfoForm: React.FC<UserInfoFormProps> = ({ onGenerateWorkout }) => {
   ];
 
   return (
-    <Paper elevation={3} sx={{ p: 4, mb: 4 }}>
+    <Paper elevation={3} sx={{ p: 6, mb: 5 }}>
       <form onSubmit={handleSubmit}>
-        <GridLegacy container spacing={4}>
+        <GridLegacy container spacing={6} sx={{ pt: 2 }}>
           {/* Left Column - Personal Information */}
-          <GridLegacy xs={12} md={6}>
-            <Typography variant="h6" gutterBottom>
+          <GridLegacy xs={12} md={6} sx={{ pl: 3, pr: 2}}>
+            <Typography variant="h6" gutterBottom sx={{ display: 'flex', justifyContent: 'center' }}>
               Personal Information
             </Typography>
             
@@ -131,6 +131,7 @@ const UserInfoForm: React.FC<UserInfoFormProps> = ({ onGenerateWorkout }) => {
               value={formData.name}
               onChange={handleChange}
               margin="normal"
+              sx={{ mb: 3 }}
             />
             
             <TextField
@@ -142,9 +143,10 @@ const UserInfoForm: React.FC<UserInfoFormProps> = ({ onGenerateWorkout }) => {
               onChange={handleNumberChange}
               inputProps={{ min: 16, max: 90 }}
               margin="normal"
+              sx={{ mb: 3 }}
             />
             
-            <FormControl fullWidth margin="normal">
+            <FormControl fullWidth margin="normal" sx={{ mb: 3 }}>
               <InputLabel>Gender</InputLabel>
               <Select
                 name="gender"
@@ -167,6 +169,7 @@ const UserInfoForm: React.FC<UserInfoFormProps> = ({ onGenerateWorkout }) => {
               onChange={handleNumberChange}
               inputProps={{ min: 50, max: 500 }}
               margin="normal"
+              sx={{ mb: 3 }}
             />
             
             <TextField
@@ -178,6 +181,7 @@ const UserInfoForm: React.FC<UserInfoFormProps> = ({ onGenerateWorkout }) => {
               onChange={handleNumberChange}
               inputProps={{ min: 50, max: 500 }}
               margin="normal"
+              sx={{ mb: 3 }}
             />
             
             <TextField
@@ -189,16 +193,17 @@ const UserInfoForm: React.FC<UserInfoFormProps> = ({ onGenerateWorkout }) => {
               onChange={handleNumberChange}
               inputProps={{ min: 36, max: 96 }}
               margin="normal"
+              sx={{ mb: 3 }}
             />
           </GridLegacy>
           
           {/* Right Column - Fitness Goals & Preferences */}
-          <GridLegacy xs={12} md={6}>
-            <Typography variant="h6" gutterBottom>
+          <GridLegacy xs={12} md={6} sx={{ pl: 2}}>
+            <Typography variant="h6" gutterBottom sx={{ display: 'flex', justifyContent: 'center' }}>
               Fitness Goals & Preferences
             </Typography>
             
-            <FormControl fullWidth margin="normal">
+            <FormControl fullWidth margin="normal" sx={{ mb: 3 }}>
               <InputLabel>Primary Fitness Goal</InputLabel>
               <Select
                 name="fitnessGoal"
@@ -214,7 +219,7 @@ const UserInfoForm: React.FC<UserInfoFormProps> = ({ onGenerateWorkout }) => {
               </Select>
             </FormControl>
             
-            <FormControl fullWidth margin="normal">
+            <FormControl fullWidth margin="normal" sx={{ mb: 3 }}>
               <InputLabel>Fitness Level</InputLabel>
               <Select
                 name="fitnessLevel"
@@ -229,7 +234,9 @@ const UserInfoForm: React.FC<UserInfoFormProps> = ({ onGenerateWorkout }) => {
             </FormControl>
             
             <Box sx={{ mt: 4, mb: 2 }}>
-              <Typography gutterBottom>Days Available Per Week</Typography>
+              <Typography gutterBottom sx={{ mb: 2 }}>
+                Days Available Per Week
+              </Typography>
               <Slider
                 value={formData.daysPerWeek}
                 onChange={handleSliderChange('daysPerWeek')}
@@ -248,7 +255,9 @@ const UserInfoForm: React.FC<UserInfoFormProps> = ({ onGenerateWorkout }) => {
             </Box>
             
             <Box sx={{ mt: 4, mb: 2 }}>
-              <Typography gutterBottom>Time Available Per Session (minutes)</Typography>
+              <Typography gutterBottom sx={{ mb: 2 }}>
+                Time Available Per Session (minutes)
+              </Typography>
               <Slider
                 value={formData.timePerSession}
                 onChange={handleSliderChange('timePerSession')}
@@ -275,6 +284,7 @@ const UserInfoForm: React.FC<UserInfoFormProps> = ({ onGenerateWorkout }) => {
               rows={2}
               placeholder="E.g., knee pain, shoulder issues..."
               margin="normal"
+              sx={{ mb: 3 }}
             />
             
             <TextField
@@ -287,16 +297,17 @@ const UserInfoForm: React.FC<UserInfoFormProps> = ({ onGenerateWorkout }) => {
               rows={2}
               placeholder="E.g., prefer cardio, hate lunges..."
               margin="normal"
+              sx={{ mb: 3 }}
             />
           </GridLegacy>
           
           {/* Equipment Selection - Full Width */}
           <GridLegacy xs={12}>
-            <Typography variant="h6" gutterBottom>
+            <Typography variant="h6" gutterBottom sx={{ ml: 5 }}>
               Available Equipment
             </Typography>
             
-            <FormControl fullWidth>
+            <FormControl fullWidth sx={{ ml: 3 }}>
               <InputLabel>Select available equipment</InputLabel>
               <Select
                 multiple
