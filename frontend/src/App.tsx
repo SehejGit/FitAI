@@ -6,17 +6,8 @@ import { Container, Typography, Box, Button } from '@mui/material';
 import UserInfoForm from './components/UserInfoForm';
 import WorkoutPlan from './components/WorkoutPlan';
 
-// First, let's set up our types
-
 // Define types for our exercise library
 type ExerciseArea = 'upper' | 'lower' | 'core' | 'full_body' | 'cardio';
-type EquipmentType = 'bodyweight' | 'dumbbell' | 'bands' | 'gym' | 'cardio';
-
-interface ExerciseLibrary {
-  [key: string]: {
-    [key: string]: string[] | { [key: string]: string[] }
-  }
-}
 
 // Define types for user input
 interface UserInfo {

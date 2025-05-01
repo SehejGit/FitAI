@@ -36,7 +36,7 @@ A web application that analyzes exercise form from uploaded videos using compute
 3. Navigate to frontend
 
     ```
-    cd FitAI/frontend
+    cd frontend
     ```
 
 4. Install frontend dependencies:
@@ -51,7 +51,7 @@ A web application that analyzes exercise form from uploaded videos using compute
 
 6. Open a web browser and navigate to:
    ```
-   http://localhost:5000
+   http://localhost:3000
    ```
 
 ### Docker Installation (Alternative)
