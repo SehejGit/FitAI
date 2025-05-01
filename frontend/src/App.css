@@ -1,15 +1,99 @@
 .App {
-    padding: 20px 0;
-  }
-  
-  body {
-    background-color: #f5f5f5;
-  }
-  
-  .MuiSlider-markLabel {
-    font-size: 0.8rem;
-  }
-  
-  .MuiTab-root {
-    font-weight: 500;
-  }
+  padding: 20px 0;
+}
+
+body {
+  background-color: #f5f5f5;
+}
+
+.MuiSlider-markLabel {
+  font-size: 0.8rem;
+}
+
+.MuiTab-root {
+  font-weight: 500;
+}
+
+/* Video player specific styles */
+video {
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  background-color: #000;
+}
+
+.video-container {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.video-container:hover {
+  transform: scale(1.01);
+}
+
+.video-button {
+  transition: all 0.2s ease;
+}
+
+.video-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.12);
+}
+
+/* Analysis results styles */
+.score-circle {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  margin: 0 auto;
+  font-weight: bold;
+  font-size: 1.5rem;
+  color: white;
+  transition: all 0.3s ease;
+}
+
+.score-high {
+  background: linear-gradient(135deg, #4CAF50, #8BC34A);
+}
+
+.score-medium {
+  background: linear-gradient(135deg, #FF9800, #FFC107);
+}
+
+.score-low {
+  background: linear-gradient(135deg, #F44336, #FF5722);
+}
+
+.feedback-item {
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  border-radius: 4px;
+  background-color: #f9f9f9;
+  border-left: 4px solid #1E88E5;
+  transition: all 0.2s ease;
+}
+
+.feedback-item:hover {
+  background-color: #f0f7ff;
+  transform: translateX(2px);
+}
+
+/* Workout plan table enhancements */
+.exercise-row:hover {
+  background-color: rgba(30, 136, 229, 0.05);
+}
+
+.exercise-video-button {
+  opacity: 0.9;
+  transition: all 0.2s ease;
+}
+
+.exercise-row:hover .exercise-video-button {
+  opacity: 1;
+  transform: scale(1.05);
+}
