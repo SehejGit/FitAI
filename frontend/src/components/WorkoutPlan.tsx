@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -16,12 +17,17 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
-  Divider
+  Divider,
+  Button,
+  Tooltip
 } from '@mui/material';
 
+// Correct icon imports
 import FitnessCenterIcon from '@mui/icons-material/FitnessCenter';
 import TimerIcon from '@mui/icons-material/Timer';
 import TipsAndUpdatesIcon from '@mui/icons-material/TipsAndUpdates';
+import VideoLibraryIcon from '@mui/icons-material/VideoLibrary';
+import GetAppIcon from '@mui/icons-material/GetApp';
 
 interface Exercise {
   name: string;
@@ -38,6 +44,7 @@ interface WorkoutDay {
 
 interface WorkoutPlanProps {
   workoutDays: WorkoutDay[];
+  onCreateNewPlan: () => void;
 }
 
 interface TabPanelProps {
@@ -73,11 +80,17 @@ function a11yProps(index: number) {
   };
 }
 
-const WorkoutPlan: React.FC<WorkoutPlanProps> = ({ workoutDays }) => {
+const WorkoutPlan: React.FC<WorkoutPlanProps> = ({ workoutDays, onCreateNewPlan }) => {
   const [value, setValue] = useState(0);
+  const navigate = useNavigate();
 
   const handleChange = (event: React.SyntheticEvent, newValue: number) => {
     setValue(newValue);
+  };
+
+  const handleVideoClick = (dayNum: string, exerciseName: string) => {
+    // Navigate to video player page with day and exercise info
+    navigate(`/video/${dayNum}/${encodeURIComponent(exerciseName)}`);
   };
 
   const tips = [
@@ -86,7 +99,8 @@ const WorkoutPlan: React.FC<WorkoutPlanProps> = ({ workoutDays }) => {
     "Stay hydrated throughout your workouts",
     "Focus on proper form over heavy weights or high reps",
     "Progressively increase intensity as you get stronger",
-    "Allow at least 48 hours of rest for muscle groups between workouts"
+    "Allow at least 48 hours of rest for muscle groups between workouts",
+    "Record yourself to check form and track progress"
   ];
 
   return (
@@ -125,6 +139,7 @@ const WorkoutPlan: React.FC<WorkoutPlanProps> = ({ workoutDays }) => {
                     <TableCell align="center">Sets</TableCell>
                     <TableCell align="center">Reps</TableCell>
                     <TableCell align="center">Rest</TableCell>
+                    <TableCell align="center">Video</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -132,6 +147,7 @@ const WorkoutPlan: React.FC<WorkoutPlanProps> = ({ workoutDays }) => {
                     <TableRow
                       key={`${day.day}-${exIndex}`}
                       sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
+                      className="exercise-row"
                     >
                       <TableCell component="th" scope="row">
                         <Box sx={{ display: 'flex', alignItems: 'center' }}>
@@ -146,6 +162,20 @@ const WorkoutPlan: React.FC<WorkoutPlanProps> = ({ workoutDays }) => {
                           <TimerIcon sx={{ mr: 0.5, fontSize: '1rem', color: 'text.secondary' }} />
                           {exercise.rest}
                         </Box>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Tooltip title="Watch & Record Exercise">
+                          <Button
+                            variant="contained"
+                            size="small"
+                            startIcon={<VideoLibraryIcon />}
+                            onClick={() => handleVideoClick(day.day.replace('Day ', ''), exercise.name)}
+                            sx={{ borderRadius: 4 }}
+                            className="exercise-video-button"
+                          >
+                            Watch & Record
+                          </Button>
+                        </Tooltip>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -174,6 +204,24 @@ const WorkoutPlan: React.FC<WorkoutPlanProps> = ({ workoutDays }) => {
             ))}
           </List>
         </TabPanel>
+        
+        <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
+          <Button 
+            variant="contained" 
+            color="primary" 
+            onClick={onCreateNewPlan}
+            sx={{ mr: 2 }}
+          >
+            Create New Plan
+          </Button>
+          <Button 
+            variant="outlined" 
+            color="primary"
+            startIcon={<GetAppIcon />}
+          >
+            Download Workout Plan (PDF)
+          </Button>
+        </Box>
       </Paper>
     </Box>
   );

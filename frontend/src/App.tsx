@@ -2,8 +2,10 @@ import * as React from 'react';
 import { useState } from 'react';
 import './App.css';
 import { Container, Typography, Box, Button } from '@mui/material';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import UserInfoForm from './components/UserInfoForm';
 import WorkoutPlan from './components/WorkoutPlan';
+import VideoPlayer from './components/VideoPlayer';
 
 // Define types for our exercise library
 type ExerciseArea = 'upper' | 'lower' | 'core' | 'full_body' | 'cardio';
@@ -214,38 +216,40 @@ const App: React.FC = () => {
     setShowWorkout(true);
   };
 
-  return (
-    <Container maxWidth="lg" className="App">
-      <Box sx={{ my: 4, textAlign: 'center' }}>
-        <Typography variant="h2" component="h1" gutterBottom>
-          💪 Fitness Buddy
-        </Typography>
-        <Typography variant="h5" component="h2" gutterBottom>
-          Get a personalized weekly workout plan
-        </Typography>
-      </Box>
+  const handleResetWorkout = () => {
+    setShowWorkout(false);
+  };
 
-      {!showWorkout ? (
-        <UserInfoForm onGenerateWorkout={handleGenerateWorkout} />
-      ) : (
-        <>
-          <WorkoutPlan workoutDays={workoutPlan || []} />
-          <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
-            <Button 
-              variant="contained" 
-              color="primary" 
-              onClick={() => setShowWorkout(false)}
-              sx={{ mr: 2 }}
-            >
-              Create New Plan
-            </Button>
-            <Button variant="outlined" color="primary">
-              Download Workout Plan (PDF)
-            </Button>
-          </Box>
-        </>
-      )}
-    </Container>
+  return (
+    <Router>
+      <Container maxWidth="lg" className="App">
+        <Box sx={{ my: 4, textAlign: 'center' }}>
+          <Typography variant="h2" component="h1" gutterBottom>
+            💪 Fitness Buddy
+          </Typography>
+          <Typography variant="h5" component="h2" gutterBottom>
+            Get a personalized weekly workout plan
+          </Typography>
+        </Box>
+
+        <Routes>
+          <Route path="/" element={
+            !showWorkout ? (
+              <UserInfoForm onGenerateWorkout={handleGenerateWorkout} />
+            ) : (
+              <WorkoutPlan 
+                workoutDays={workoutPlan || []} 
+                onCreateNewPlan={handleResetWorkout} 
+              />
+            )
+          } />
+          
+          <Route path="/video/:day/:exercise" element={<VideoPlayer />} />
+          
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Container>
+    </Router>
   );
 };
 
