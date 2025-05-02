@@ -1,21 +1,23 @@
 // videoAnalysis.ts - A separate module for handling video analysis
 import { API_BASE_URL, VIDEO_ANALYSIS_CONFIG } from '../config';
 
+// Define the interface for analysis results
+interface AnalysisResult {
+  score: number;
+  feedback: string[];
+  rawAnalysis: any;
+  annotatedVideoUrl?: string; // Make this property optional
+}
+
 /**
  * Validate that we can analyze this exercise type
  */
 export const canAnalyzeExercise = (exerciseName: string): boolean => {
-  // Convert to lowercase and normalize
+  // For now, we'll just assume all pushup-like exercises can be analyzed with the pushup endpoint
   const normalizedName = exerciseName.toLowerCase().trim();
-  
-  // Check if this is a supported exercise
-  for (const supported of VIDEO_ANALYSIS_CONFIG.supportedExercises) {
-    if (normalizedName.includes(supported.toLowerCase())) {
-      return true;
-    }
-  }
-  
-  return false;
+  return normalizedName.includes('push') || VIDEO_ANALYSIS_CONFIG.supportedExercises.some(
+    ex => normalizedName.includes(ex.toLowerCase())
+  );
 };
 
 /**
@@ -25,7 +27,7 @@ export const canAnalyzeExercise = (exerciseName: string): boolean => {
  * @param exerciseName - The type of exercise
  * @returns Analysis results from the server
  */
-export const analyzeExerciseForm = async (videoBlob: Blob, exerciseName: string): Promise<any> => {
+export const analyzeExerciseForm = async (videoBlob: Blob, exerciseName: string): Promise<AnalysisResult> => {
   // Check if we support this exercise type
   if (!canAnalyzeExercise(exerciseName)) {
     throw new Error(`Analysis for "${exerciseName}" is not currently supported. Supported exercises: ${VIDEO_ANALYSIS_CONFIG.supportedExercises.join(', ')}`);
@@ -63,15 +65,35 @@ export const analyzeExerciseForm = async (videoBlob: Blob, exerciseName: string)
     
     // Parse the JSON response
     const analysisData = await response.json();
+    console.log('Backend response:', analysisData);
     
     // Format the response to match our frontend expectations
-    return {
+    const result: AnalysisResult = {
       score: calculateFormScore(analysisData.analysis),
       feedback: generateFeedback(analysisData.analysis),
-      annotatedVideoUrl: analysisData.annotated_video_url ? 
-        `${API_BASE_URL}${analysisData.annotated_video_url}` : undefined,
       rawAnalysis: analysisData.analysis // Also return the raw analysis data for debugging
     };
+    
+    // Handle the annotated video URL and path
+    if (analysisData.annotated_video_path) {
+      // Use the direct file system path first
+      result.annotatedVideoUrl = analysisData.annotated_video_path;
+      console.log('Using direct file system path for video:', result.annotatedVideoUrl);
+    } else if (analysisData.annotated_video_url) {
+      // Fall back to the API URL if file system path is not available
+      let videoUrl = analysisData.annotated_video_url;
+      
+      // If it's not already absolute, make it absolute
+      if (!videoUrl.startsWith('http')) {
+        const separator = videoUrl.startsWith('/') ? '' : '/';
+        videoUrl = `${API_BASE_URL}${separator}${videoUrl}`;
+      }
+      
+      result.annotatedVideoUrl = videoUrl;
+      console.log('Using API URL for video:', result.annotatedVideoUrl);
+    }
+    
+    return result;
   } catch (error) {
     console.error('Error analyzing video:', error);
     throw error;

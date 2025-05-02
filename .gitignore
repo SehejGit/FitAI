@@ -3,3 +3,7 @@
 *.DS_Store
 clips/
 node_modules/
+
+__pycache__/
+
+backend/static/
