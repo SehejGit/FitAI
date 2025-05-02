@@ -121,6 +121,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = () => {
   
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
+    console.log("File:", file);
     if (file && file.type.startsWith('video/')) {
       const videoUrl = URL.createObjectURL(file);
       setUploadedVideo(videoUrl);
@@ -155,15 +156,17 @@ const getVideoSource = (url: string): string => {
 
 // Update the getCurrentVideoSrc function
 const getCurrentVideoSrc = (): string => {
-  if (showAnnotatedVideo && analysisResults?.annotatedVideoUrl) {
-    const videoSrc = getVideoSource(analysisResults.annotatedVideoUrl);
-    // Add a cache-busting parameter for HTTP URLs
-    if (videoSrc.startsWith('http')) {
-      return `${videoSrc}?t=${new Date().getTime()}`;
-    }
-    return videoSrc;
-  }
-  return uploadedVideo || '';
+  // if (showAnnotatedVideo && analysisResults?.annotatedVideoUrl) {
+  //   const videoSrc = getVideoSource(analysisResults.annotatedVideoUrl);
+  //   // Add a cache-busting parameter for HTTP URLs
+  //   if (videoSrc.startsWith('http')) {
+  //     return `${videoSrc}?t=${new Date().getTime()}`;
+  //   }
+  //   return videoSrc;
+  // }
+  // return uploadedVideo || '';
+  
+  return analysisResults?.annotatedVideoUrl || '';
 };
   
   const handleAnalyzeVideo = async () => {
@@ -359,7 +362,7 @@ const getCurrentVideoSrc = (): string => {
               <CardMedia
                 component="video"
                 controls
-                src={videoUrl}
+                src={require('./fdbb092b58863e5c86fdb8bb1411fcea.mov')}
                 sx={{ width: '100%', height: '300px' }}
               />
               <CardContent>
@@ -436,25 +439,33 @@ const getCurrentVideoSrc = (): string => {
                               </Typography>
                             </Box>
                           ) : (
-                            <video 
-                              controls 
-                              src={getCurrentVideoSrc()} 
-                              style={{ width: '100%', height: '100%' }}
-                              onError={(e) => {
-                                console.error('Video load error:', e);
+                            // <video 
+                            //   controls 
+                            //   src={require('./annotated_pike_push-ups_1746145382534.mp4')} 
+                            //   style={{ width: '100%', height: '100%' }}
+                            //   onError={(e) => {
+                            //     console.error('Video load error:', e);
                                 
-                                // Log additional information about the URL
-                                const videoSrc = getCurrentVideoSrc();
-                                console.error('Failed video URL:', videoSrc);
+                            //     // Log additional information about the URL
+                            //     const videoSrc = getCurrentVideoSrc();
+                            //     console.error('Failed video URL:', videoSrc);
                                 
-                                // Check if the file exists for local file paths
-                                if (videoSrc.startsWith('../../../')) {
-                                  console.error('This is a local file path. Check if the directory exists and has the right permissions.');
-                                }
+                            //     // Check if the file exists for local file paths
+                            //     if (videoSrc.startsWith('../../../')) {
+                            //       console.error('This is a local file path. Check if the directory exists and has the right permissions.');
+                            //     }
                                 
-                                setVideoAccessError('Error loading video. Check if the video file exists at the specified path.');
-                              }}
-                            />
+                            //     setVideoAccessError('Error loading video. Check if the video file exists at the specified path.');
+                            //   }}
+                            // />
+                            <Card>
+                              <CardMedia
+                                component="video"
+                                controls
+                                src={require('./annotated_pike_push-ups_1746148432247.mov')}
+                                sx={{ width: '100%', height: '300px' }}
+                              />
+                            </Card>
                           )}
                         </>
                       )}
