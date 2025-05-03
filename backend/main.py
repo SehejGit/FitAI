@@ -2,8 +2,8 @@
 
 import os
 import shutil
-from fastapi import FastAPI, File, UploadFile, HTTPException, Query
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi import FastAPI, File, UploadFile, HTTPException, Query, Request
+from fastapi.responses import JSONResponse, FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import uvicorn
@@ -29,6 +29,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Add request logging middleware
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    print(f"Request path: {request.url.path}, method: {request.method}")
+    response = await call_next(request)
+    print(f"Response status: {response.status_code}")
+    return response
+
 @app.post("/analyze_pushup/")
 async def analyze_pushup_endpoint(
     file: UploadFile = File(..., description="MP4 video of pushups"),
@@ -42,8 +50,20 @@ async def analyze_pushup_endpoint(
         shutil.copyfileobj(file.file, buffer)
 
     # 2) Build output path - store directly in VIDEOS_DIR
-    output_filename = f"annotated_{safe_filename}" if return_video else None
-    output_path = os.path.join(VIDEOS_DIR, output_filename) if output_filename else None
+    if return_video:
+        # Ensure output has .mov extension
+        base_filename = safe_filename
+        if base_filename.lower().endswith('.mp4'):
+            base_filename = base_filename[:-4]  # Remove .mp4
+        elif base_filename.lower().endswith('.mov'):
+            base_filename = base_filename[:-4]  # Remove .mov
+        
+        # Use .mov extension for output
+        output_filename = f"annotated_{base_filename}.mov"
+        output_path = os.path.join(VIDEOS_DIR, output_filename)
+    else:
+        output_filename = None
+        output_path = None
     
     # 3) Run analysis
     try:
@@ -58,7 +78,6 @@ async def analyze_pushup_endpoint(
         # Use a relative URL path that will be served by the /videos static route
         video_url = f"/videos/{output_filename}"
         payload["annotated_video_url"] = video_url
-        payload["annotated_video_path"] = f"../../../backend/static/videos/{output_filename}"
         print(f"Video URL provided: {video_url}")
     elif return_video:
         # If video was requested but doesn't exist
@@ -66,6 +85,68 @@ async def analyze_pushup_endpoint(
         print("Error: Annotated video requested but not generated")
     
     return JSONResponse(content=payload)
+
+@app.get("/api/videos/{filename}")
+@app.head("/api/videos/{filename}")  # Add explicit support for HEAD requests
+async def get_video_by_filename(filename: str, request: Request):
+    """Serve a video by filename - supports both the /api/videos and /videos paths"""
+    # Add method to logs
+    print(f"Request method: {request.method}")
+    
+    path = os.path.join(VIDEOS_DIR, filename)
+    
+    # Debug logging
+    print(f"Attempting to serve video: {path}")
+    print(f"File exists: {os.path.isfile(path)}")
+    
+    if not os.path.isfile(path):
+        # Try to find the file with different prefixes/patterns
+        possible_alternatives = [
+            # If filename is ann-example.mp4, try annotated_example.mp4
+            os.path.join(VIDEOS_DIR, f"annotated_{filename[4:]}") if filename.startswith("ann-") else None,
+            
+            # If filename is annotated_example.mp4, try ann-example.mp4
+            os.path.join(VIDEOS_DIR, f"ann-{filename[10:]}") if filename.startswith("annotated_") else None,
+            
+            # Try without any prefix
+            os.path.join(VIDEOS_DIR, filename.replace("annotated_", "").replace("ann-", "")),
+            
+            # Try with annotated_ prefix if it doesn't have one
+            os.path.join(VIDEOS_DIR, f"annotated_{filename}") if not filename.startswith("annotated_") else None,
+        ]
+        
+        # Filter out None values and check each alternative
+        for alt_path in filter(None, possible_alternatives):
+            print(f"Checking alternative path: {alt_path}")
+            if os.path.isfile(alt_path):
+                path = alt_path
+                print(f"Found alternative path: {path}")
+                break
+        else:  # This else belongs to the for loop (runs if no break occurs)
+            print(f"No alternative paths found for: {filename}")
+            raise HTTPException(status_code=404, detail="Video not found")
+    
+    # Set the appropriate content type based on the file extension
+    if path.endswith(".mp4"):
+        media_type = "video/mp4"
+    elif path.endswith(".mov"):
+        media_type = "video/quicktime"
+    else:
+        media_type = "application/octet-stream"
+    
+    print(f"Serving file: {path} with media type: {media_type}")
+    
+    return FileResponse(path, media_type=media_type)
+
+@app.options("/api/videos/{filename}")
+async def options_video(filename: str):
+    """Handle preflight requests for video endpoints"""
+    response = Response()
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    print(f"Handled OPTIONS request for: {filename}")
+    return response
 
 @app.get("/analyze_pushup/video/{video_name}")
 def get_video(video_name: str):

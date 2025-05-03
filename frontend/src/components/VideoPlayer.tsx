@@ -88,20 +88,77 @@ const VideoPlayer: React.FC<VideoPlayerProps> = () => {
     videoFileRef.current = null;
   }, [exercise]);
   
+  const getVideoApiUrl = (url: string | undefined): string => {
+    // If url is undefined, return empty string
+    if (!url) {
+      return '';
+    }
+    
+    console.log('Original video URL:', url);
+    
+    // Extract just the filename from the path
+    const filename = url.split('/').pop();
+    
+    if (!filename) {
+      console.error('Could not extract filename from URL:', url);
+      return url;
+    }
+    
+    console.log('Extracted filename:', filename);
+    
+    // Don't modify the filename at all - let the server handle the variations
+    // Just pass it as is to the API endpoint
+    const apiUrl = `${API_BASE_URL}/api/videos/${filename}`;
+    console.log('Final API URL:', apiUrl);
+    return apiUrl;
+  };
+  
   // Check if the annotated video URL is accessible when it changes
   useEffect(() => {
+    // Update the verification function
     const verifyVideoAccess = async () => {
       if (analysisResults?.annotatedVideoUrl) {
         try {
           console.log('Checking video URL accessibility:', analysisResults.annotatedVideoUrl);
-          const response = await fetch(analysisResults.annotatedVideoUrl, { method: 'HEAD' });
+          const videoUrl = getVideoApiUrl(analysisResults.annotatedVideoUrl);
+          console.log('Testing accessibility of:', videoUrl);
           
-          if (!response.ok) {
-            setVideoAccessError(`Video access error: ${response.status} ${response.statusText}`);
-            console.error('Video URL is not accessible:', response.status, response.statusText);
-          } else {
-            setVideoAccessError(null);
-            console.log('Video URL is accessible!');
+          // Skip HEAD request and use GET directly with a timeout
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+          
+          try {
+            // Use a range request to just get the first few bytes
+            const response = await fetch(videoUrl, { 
+              method: 'GET',
+              headers: {
+                'Range': 'bytes=0-1000' // Just get the first 1000 bytes to check availability
+              },
+              signal: controller.signal
+            });
+            
+            clearTimeout(timeoutId);
+            
+            console.log('Video access test response:', {
+              status: response.status,
+              statusText: response.statusText,
+              headers: {
+                'content-type': response.headers.get('content-type'),
+                'content-length': response.headers.get('content-length')
+              }
+            });
+            
+            // 206 Partial Content is the success response for range requests
+            if (response.status === 206 || response.status === 200) {
+              setVideoAccessError(null);
+              console.log('Video URL is accessible!');
+            } else {
+              setVideoAccessError(`Video access error: ${response.status} ${response.statusText}`);
+              console.error('Video URL is not accessible:', response.status, response.statusText);
+            }
+          } catch (err) {
+            clearTimeout(timeoutId);
+            throw err;
           }
         } catch (error) {
           setVideoAccessError(`Error accessing video: ${error instanceof Error ? error.message : String(error)}`);
@@ -133,41 +190,15 @@ const VideoPlayer: React.FC<VideoPlayerProps> = () => {
     }
   };
 
-  // Add this function to determine how to load the video
-const getVideoSource = (url: string): string => {
-  // If it's a relative path to the backend directory, use as is
-  if (url.includes('backend/static/videos')) {
-    return url;
-  }
-  
-  // If it's an API path, ensure it's absolute
-  if (url.startsWith('/static/') || url.startsWith('/videos/')) {
-    return `${API_BASE_URL}${url}`;
-  }
-  
-  // If it's already absolute, use as is
-  if (url.startsWith('http')) {
-    return url;
-  }
-  
-  // Default case - just return the original
-  return url;
-};
-
-// Update the getCurrentVideoSrc function
-const getCurrentVideoSrc = (): string => {
-  // if (showAnnotatedVideo && analysisResults?.annotatedVideoUrl) {
-  //   const videoSrc = getVideoSource(analysisResults.annotatedVideoUrl);
-  //   // Add a cache-busting parameter for HTTP URLs
-  //   if (videoSrc.startsWith('http')) {
-  //     return `${videoSrc}?t=${new Date().getTime()}`;
-  //   }
-  //   return videoSrc;
-  // }
-  // return uploadedVideo || '';
-  
-  return analysisResults?.annotatedVideoUrl || '';
-};
+  // Get the current video source to display
+  const getCurrentVideoSrc = (): string => {
+    if (showAnnotatedVideo && analysisResults?.annotatedVideoUrl) {
+      const videoSrc = getVideoApiUrl(analysisResults.annotatedVideoUrl);
+      console.log('Using video source:', videoSrc);
+      return videoSrc;
+    }
+    return uploadedVideo || '';
+  };
   
   const handleAnalyzeVideo = async () => {
     if (!uploadedVideo || !videoFileRef.current) return;
@@ -190,22 +221,15 @@ const getCurrentVideoSrc = (): string => {
       if (results.annotatedVideoUrl) {
         console.log('Video URL/path provided:', results.annotatedVideoUrl);
         
-        // For direct file system paths
-        if (results.annotatedVideoUrl.includes('backend/static/videos')) {
-          console.log('Using direct file system path');
-        } 
-        // For API URLs
-        else {
-          const apiUrl = getVideoSource(results.annotatedVideoUrl);
-          console.log('Using API URL:', apiUrl);
-          
-          // Test HTTP URL accessibility
-          try {
-            const headResponse = await fetch(apiUrl, { method: 'HEAD' });
-            console.log('API URL test result:', headResponse.status, headResponse.statusText);
-          } catch (error) {
-            console.error('Error testing API URL:', error);
-          }
+        // Test API URL accessibility
+        const apiUrl = getVideoApiUrl(results.annotatedVideoUrl);
+        console.log('Using API URL:', apiUrl);
+        
+        try {
+          const headResponse = await fetch(apiUrl, { method: 'HEAD' });
+          console.log('API URL test result:', headResponse.status, headResponse.statusText);
+        } catch (error) {
+          console.error('Error testing API URL:', error);
         }
       }
       
@@ -249,22 +273,37 @@ const getCurrentVideoSrc = (): string => {
       }
       
       // Make a direct fetch to the backend endpoint
-      const directUrl = `${API_BASE_URL}/analyze_pushup/video/${videoName}`;
-      console.log('Attempting direct fetch from:', directUrl);
+      const apiUrl = getVideoApiUrl(analysisResults.annotatedVideoUrl);
+      console.log('Attempting direct fetch from:', apiUrl);
       
-      const response = await fetch(directUrl);
+      // Try different HTTP methods
+      for (const method of ['GET', 'HEAD']) {
+        try {
+          console.log(`Trying ${method} request...`);
+          const response = await fetch(apiUrl, { method });
+          
+          console.log(`${method} response:`, {
+            status: response.status,
+            statusText: response.statusText,
+            contentType: response.headers.get('Content-Type'),
+            contentLength: response.headers.get('Content-Length'),
+          });
+        } catch (error) {
+          console.error(`Error with ${method} request:`, error);
+        }
+      }
       
-      console.log('Direct API response:', {
-        status: response.status,
-        statusText: response.statusText,
-        contentType: response.headers.get('Content-Type'),
-        contentLength: response.headers.get('Content-Length'),
-      });
-      
-      if (!response.ok) {
-        setVideoAccessError(`Direct API error: ${response.status} ${response.statusText}`);
-      } else {
-        setVideoAccessError(null);
+      // Also try the original URL format
+      try {
+        const originalUrl = `${API_BASE_URL}${analysisResults.annotatedVideoUrl}`;
+        console.log('Trying original URL format:', originalUrl);
+        const response = await fetch(originalUrl, { method: 'HEAD' });
+        console.log('Original URL response:', {
+          status: response.status,
+          statusText: response.statusText,
+        });
+      } catch (error) {
+        console.error('Error with original URL format:', error);
       }
     } catch (error) {
       console.error('Error in direct API fetch:', error);
@@ -338,13 +377,35 @@ const getCurrentVideoSrc = (): string => {
             >
               {analysisResults.annotatedVideoUrl}
             </Typography>
+            <Typography variant="subtitle2">API Endpoint URL:</Typography>
+            <Typography 
+              variant="body2" 
+              component="div"
+              sx={{ 
+                wordBreak: 'break-all', 
+                py: 1,
+                px: 2,
+                bgcolor: 'background.paper',
+                borderRadius: 1,
+                my: 1
+              }}
+            >
+              {getVideoApiUrl(analysisResults.annotatedVideoUrl)}
+            </Typography>
             <Box sx={{ display: 'flex', gap: 1 }}>
               <Button 
                 size="small" 
                 variant="contained" 
-                onClick={() => window.open(analysisResults.annotatedVideoUrl, '_blank')}
+                onClick={() => analysisResults.annotatedVideoUrl && window.open(getVideoApiUrl(analysisResults.annotatedVideoUrl), '_blank')}
               >
                 Open in New Tab
+              </Button>
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={() => analysisResults.annotatedVideoUrl && window.open(`${API_BASE_URL}${analysisResults.annotatedVideoUrl}`, '_blank')}
+              >
+                Try Original URL
               </Button>
             </Box>
           </Alert>
@@ -435,37 +496,35 @@ const getCurrentVideoSrc = (): string => {
                                 Unable to load annotated video
                               </Typography>
                               <Typography color="text.secondary" variant="body2">
-                                The server may still be processing your video.
+                                The server may still be processing your video or there may be an access issue.
                               </Typography>
+                              {videoDebugMode && (
+                                <Button 
+                                  variant="outlined" 
+                                  color="primary" 
+                                  size="small"
+                                  sx={{ mt: 1 }}
+                                  onClick={handleFetchRawAnnotatedVideo}
+                                >
+                                  Retry Video Access
+                                </Button>
+                              )}
                             </Box>
                           ) : (
-                            // <video 
-                            //   controls 
-                            //   src={require('./annotated_pike_push-ups_1746145382534.mp4')} 
-                            //   style={{ width: '100%', height: '100%' }}
-                            //   onError={(e) => {
-                            //     console.error('Video load error:', e);
+                            <video 
+                              controls 
+                              src={getVideoApiUrl(analysisResults.annotatedVideoUrl)} 
+                              style={{ width: '100%', height: '100%' }}
+                              onError={(e) => {
+                                console.error('Video load error:', e);
                                 
-                            //     // Log additional information about the URL
-                            //     const videoSrc = getCurrentVideoSrc();
-                            //     console.error('Failed video URL:', videoSrc);
+                                // Log additional information about the URL
+                                const videoSrc = getCurrentVideoSrc();
+                                console.error('Failed video URL:', videoSrc);
                                 
-                            //     // Check if the file exists for local file paths
-                            //     if (videoSrc.startsWith('../../../')) {
-                            //       console.error('This is a local file path. Check if the directory exists and has the right permissions.');
-                            //     }
-                                
-                            //     setVideoAccessError('Error loading video. Check if the video file exists at the specified path.');
-                            //   }}
-                            // />
-                            <Card>
-                              <CardMedia
-                                component="video"
-                                controls
-                                src={require('./annotated_pike_push-ups_1746148432247.mov')}
-                                sx={{ width: '100%', height: '300px' }}
-                              />
-                            </Card>
+                                setVideoAccessError('Error loading video. Check if the video file exists and is accessible.');
+                              }}
+                            />
                           )}
                         </>
                       )}

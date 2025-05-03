@@ -26,7 +26,8 @@ def analyze_pushup(video_path, output_video_path=None):
     
     # Setup output video writer if path is provided
     if output_video_path:
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        # Changed from 'mp4v' to 'avc1' for MOV format
+        fourcc = cv2.VideoWriter_fourcc(*'avc1')
         out = cv2.VideoWriter(output_video_path, fourcc, fps, (frame_width, frame_height))
     
     # Variables to track pushup state
