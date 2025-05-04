@@ -2,15 +2,23 @@
 
 import os
 import shutil
-from fastapi import FastAPI, File, UploadFile, HTTPException, Query, Request
+from fastapi import FastAPI, File, UploadFile, HTTPException, Query, Request, Path
 from fastapi.responses import JSONResponse, FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import uvicorn
+import inspect
 
-from analyze_module import analyze_pushup
+import analyze_module
 
 app = FastAPI(title="Pushup Analysis API")
+
+# Get all analysis functions automatically
+analysis_functions = {}
+for name, func in inspect.getmembers(analyze_module, inspect.isfunction):
+    if name.startswith("analyze_"):
+        exercise_name = name[8:]
+        analysis_functions[exercise_name] = func
 
 # Create a directory for storing videos if it doesn't exist
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -37,11 +45,22 @@ async def log_requests(request: Request, call_next):
     print(f"Response status: {response.status_code}")
     return response
 
-@app.post("/analyze_pushup/")
-async def analyze_pushup_endpoint(
-    file: UploadFile = File(..., description="MP4 video of pushups"),
+@app.post("/analyze/{exercise_type}/")
+async def analyze_exercise_endpoint(
+    exercise_type: str = Path(..., description="Type of exercise to analyze"),
+    file: UploadFile = File(..., description="MP4 video of the exercise"),
     return_video: bool = Query(False, description="Also return the annotated video")
 ):
+    # Check if the requested exercise type exists
+    if exercise_type not in analysis_functions:
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Exercise type '{exercise_type}' not found. Available types: {list(analysis_functions.keys())}"
+        )
+    
+    # Get the appropriate analysis function
+    analysis_function = analysis_functions[exercise_type]
+    
     # 1) Save the upload to disk with proper filename handling
     safe_filename = file.filename.replace(" ", "_").lower()
     input_path = os.path.join(VIDEOS_DIR, safe_filename)
@@ -59,7 +78,7 @@ async def analyze_pushup_endpoint(
             base_filename = base_filename[:-4]  # Remove .mov
         
         # Use .mov extension for output
-        output_filename = f"annotated_{base_filename}.mov"
+        output_filename = f"annotated_{exercise_type}_{base_filename}.mov"
         output_path = os.path.join(VIDEOS_DIR, output_filename)
     else:
         output_filename = None
@@ -67,8 +86,8 @@ async def analyze_pushup_endpoint(
     
     # 3) Run analysis
     try:
-        result = analyze_pushup(input_path, output_path)
-        print(f"Analysis complete. Output path: {output_path}")
+        result = analysis_function(input_path, output_path)
+        print(f"Analysis complete for {exercise_type}. Output path: {output_path}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Processing error: {str(e)}")
 
@@ -85,6 +104,7 @@ async def analyze_pushup_endpoint(
         print("Error: Annotated video requested but not generated")
     
     return JSONResponse(content=payload)
+
 
 @app.get("/api/videos/{filename}")
 @app.head("/api/videos/{filename}")  # Add explicit support for HEAD requests
@@ -219,6 +239,11 @@ def api_status():
             "example_files": video_files[:5] if video_files else []
         }
     }
+
+# Endpoint to list available exercise types
+@app.get("/exercises/")
+async def list_exercises():
+    return {"available_exercises": list(analysis_functions.keys())}
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

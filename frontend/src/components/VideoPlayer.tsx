@@ -30,7 +30,7 @@ import VideoLibraryIcon from '@mui/icons-material/VideoLibrary';
 import BugReportIcon from '@mui/icons-material/BugReport';
 
 // Import the video analysis module and utilities
-import { analyzeExerciseForm } from '../utils/videoAnalysis';
+import { analyzeExerciseForm, formatExerciseNameForApi, fetchAvailableExercises, canAnalyzeExercise } from '../utils/videoAnalysis';
 import { checkVideoUrlAccess } from '../utils/corsCheck';
 import { API_BASE_URL } from '../config';
 
@@ -72,11 +72,32 @@ const VideoPlayer: React.FC<VideoPlayerProps> = () => {
   const [showAnnotatedVideo, setShowAnnotatedVideo] = useState(false);
   const [videoDebugMode, setVideoDebugMode] = useState(false);
   const [videoAccessError, setVideoAccessError] = useState<string | null>(null);
+  const [availableExercises, setAvailableExercises] = useState<string[]>([]);
+  const [isExerciseSupported, setIsExerciseSupported] = useState<boolean>(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoFileRef = useRef<File | null>(null);
   
   const decodedExercise = exercise ? decodeURIComponent(exercise) : '';
+  const formattedExercise = formatExerciseNameForApi(decodedExercise);
   const videoUrl = getExerciseVideoUrl(decodedExercise);
+  
+  // Fetch available exercises from API on component mount and check if current exercise is supported
+  useEffect(() => {
+    const fetchExercises = async () => {
+      try {
+        const exercises = await fetchAvailableExercises();
+        setAvailableExercises(exercises);
+        
+        // Check if current exercise is supported
+        const supported = await canAnalyzeExercise(decodedExercise);
+        setIsExerciseSupported(supported);
+      } catch (error) {
+        console.error('Error checking exercise support:', error);
+      }
+    };
+    
+    fetchExercises();
+  }, [decodedExercise]);
   
   // Reset state when exercise changes
   useEffect(() => {
@@ -203,41 +224,55 @@ const VideoPlayer: React.FC<VideoPlayerProps> = () => {
   const handleAnalyzeVideo = async () => {
     if (!uploadedVideo || !videoFileRef.current) return;
     
+    // Don't allow analysis if the exercise isn't supported
+    if (!isExerciseSupported) {
+      setAnalysisError(`Exercise "${decodedExercise}" is not supported for analysis. Available exercises: ${availableExercises.join(', ')}`);
+      return;
+    }
+    
     setIsAnalyzing(true);
     setAnalysisError(null);
     setVideoAccessError(null);
     
     try {
       console.log('Analyzing video file:', videoFileRef.current.name, videoFileRef.current.type);
+      console.log('Exercise type:', decodedExercise);
+      console.log('Formatted exercise type for API:', formattedExercise);
       
       // Convert File to Blob for analysis
-      const blob = await videoFileRef.current.arrayBuffer().then(buffer => new Blob([buffer], { type: videoFileRef.current?.type }));
+      const blob = await videoFileRef.current.arrayBuffer().then(buffer => 
+        new Blob([buffer], { type: videoFileRef.current?.type }));
       
       // Call the analysis function from our module
-      const results = await analyzeExerciseForm(blob, decodedExercise);
-      
-      console.log('Analysis results:', results);
-      
-      if (results.annotatedVideoUrl) {
-        console.log('Video URL/path provided:', results.annotatedVideoUrl);
+      try {
+        const results = await analyzeExerciseForm(blob, decodedExercise);
         
-        // Test API URL accessibility
-        const apiUrl = getVideoApiUrl(results.annotatedVideoUrl);
-        console.log('Using API URL:', apiUrl);
+        console.log('Analysis results:', results);
         
-        try {
-          const headResponse = await fetch(apiUrl, { method: 'HEAD' });
-          console.log('API URL test result:', headResponse.status, headResponse.statusText);
-        } catch (error) {
-          console.error('Error testing API URL:', error);
+        if (results.annotatedVideoUrl) {
+          console.log('Video URL/path provided:', results.annotatedVideoUrl);
+          
+          // Test API URL accessibility
+          const apiUrl = getVideoApiUrl(results.annotatedVideoUrl);
+          console.log('Using API URL:', apiUrl);
+          
+          try {
+            const headResponse = await fetch(apiUrl, { method: 'HEAD' });
+            console.log('API URL test result:', headResponse.status, headResponse.statusText);
+          } catch (error) {
+            console.error('Error testing API URL:', error);
+          }
         }
-      }
-      
-      setAnalysisResults(results);
-      
-      // Automatically show the annotated video when analysis is complete
-      if (results.annotatedVideoUrl) {
-        setShowAnnotatedVideo(true);
+        
+        setAnalysisResults(results);
+        
+        // Automatically show the annotated video when analysis is complete
+        if (results.annotatedVideoUrl) {
+          setShowAnnotatedVideo(true);
+        }
+      } catch (error) {
+        console.error('Analysis error:', error);
+        setAnalysisError(error instanceof Error ? error.message : String(error));
       }
     } catch (error) {
       console.error('Error analyzing video:', error);
@@ -345,6 +380,32 @@ const VideoPlayer: React.FC<VideoPlayerProps> = () => {
             {videoDebugMode ? "Hide Debug" : "Debug Mode"}
           </Button>
         </Box>
+        
+        {!isExerciseSupported && (
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            <Typography variant="subtitle2">
+              This exercise ({decodedExercise}) is not supported for automated analysis.
+            </Typography>
+            <Typography variant="body2">
+              Available exercises: {availableExercises.join(', ')}
+            </Typography>
+          </Alert>
+        )}
+        
+        {videoDebugMode && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            <Typography variant="subtitle2">Exercise API Debug Info:</Typography>
+            <Typography variant="body2">
+              Original exercise name: {decodedExercise}
+            </Typography>
+            <Typography variant="body2">
+              Formatted for API: {formattedExercise}
+            </Typography>
+            <Typography variant="body2">
+              API endpoint: {`${API_BASE_URL}/analyze/${formattedExercise}/`}
+            </Typography>
+          </Alert>
+        )}
         
         {videoDebugMode && videoAccessError && (
           <Alert severity="warning" sx={{ mb: 2 }}>
@@ -550,7 +611,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = () => {
                         color="secondary"
                         startIcon={<PlayCircleIcon />}
                         onClick={handleAnalyzeVideo}
-                        disabled={isAnalyzing}
+                        disabled={isAnalyzing || !isExerciseSupported}
                         fullWidth
                       >
                         Analyze My Form
