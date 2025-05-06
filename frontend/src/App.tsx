@@ -240,6 +240,10 @@ const App: React.FC = () => {
               <WorkoutPlan 
                 workoutDays={workoutPlan || []} 
                 onCreateNewPlan={handleResetWorkout} 
+                onSaveWorkout={async (planName) => {
+                  // Implement your save workout logic here
+                  console.log('Saving workout plan:', planName);
+                }}
               />
             )
           } />

@@ -1,34 +1,28 @@
-import * as React from 'react';
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import {
-  Box,
-  Typography,
-  Paper,
-  Tabs,
-  Tab,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
+import React, { useState } from 'react';
+import { 
+  Box, 
+  Typography, 
+  Button, 
+  TextField,
+  Paper, 
+  Tabs, 
+  Tab, 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableContainer, 
+  TableHead, 
   TableRow,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  Divider,
-  Button,
-  Tooltip
+  Alert,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle
 } from '@mui/material';
+import { Link } from 'react-router-dom';
 
-// Correct icon imports
-import FitnessCenterIcon from '@mui/icons-material/FitnessCenter';
-import TimerIcon from '@mui/icons-material/Timer';
-import TipsAndUpdatesIcon from '@mui/icons-material/TipsAndUpdates';
-import VideoLibraryIcon from '@mui/icons-material/VideoLibrary';
-import GetAppIcon from '@mui/icons-material/GetApp';
-
+// Define prop types
 interface Exercise {
   name: string;
   sets: number;
@@ -45,184 +39,216 @@ interface WorkoutDay {
 interface WorkoutPlanProps {
   workoutDays: WorkoutDay[];
   onCreateNewPlan: () => void;
+  onSaveWorkout: (planName: string) => Promise<void> | void;  // Allow both async and regular functions
 }
 
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
+const WorkoutPlan: React.FC<WorkoutPlanProps> = ({ workoutDays, onCreateNewPlan, onSaveWorkout }) => {
+  const [tabValue, setTabValue] = useState(0);
+  const [planName, setPlanName] = useState("");
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
-function TabPanel(props: TabPanelProps) {
-  const { children, value, index, ...other } = props;
-
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`workout-tabpanel-${index}`}
-      aria-labelledby={`workout-tab-${index}`}
-      {...other}
-    >
-      {value === index && (
-        <Box sx={{ p: 3 }}>
-          {children}
-        </Box>
-      )}
-    </div>
-  );
-}
-
-function a11yProps(index: number) {
-  return {
-    id: `workout-tab-${index}`,
-    'aria-controls': `workout-tabpanel-${index}`,
-  };
-}
-
-const WorkoutPlan: React.FC<WorkoutPlanProps> = ({ workoutDays, onCreateNewPlan }) => {
-  const [value, setValue] = useState(0);
-  const navigate = useNavigate();
-
-  const handleChange = (event: React.SyntheticEvent, newValue: number) => {
-    setValue(newValue);
+  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+    setTabValue(newValue);
   };
 
-  const handleVideoClick = (dayNum: string, exerciseName: string) => {
-    // Navigate to video player page with day and exercise info
-    navigate(`/video/${dayNum}/${encodeURIComponent(exerciseName)}`);
+  const handleSaveWorkout = async () => {
+    if (planName.trim()) {
+      try {
+        // Call the provided save function, which may be async
+        await onSaveWorkout(planName);
+        
+        // Close dialog and show success message
+        setShowSaveDialog(false);
+        setSaveSuccess(true);
+        
+        // Reset success message after 3 seconds
+        setTimeout(() => setSaveSuccess(false), 3000);
+      } catch (error) {
+        console.error('Error saving workout plan:', error);
+      }
+    }
   };
 
-  const tips = [
-    "Start each workout with a 5-minute warm-up (light cardio and dynamic stretching)",
-    "End each workout with a 5-minute cool-down (static stretching)",
-    "Stay hydrated throughout your workouts",
-    "Focus on proper form over heavy weights or high reps",
-    "Progressively increase intensity as you get stronger",
-    "Allow at least 48 hours of rest for muscle groups between workouts",
-    "Record yourself to check form and track progress"
-  ];
+  // Get workout descriptions based on the workout type
+  const getWorkoutDescription = (workoutName: string) => {
+    const descriptions: { [key: string]: string } = {
+      "Full Body": "This workout targets all major muscle groups for balanced total-body conditioning.",
+      "Upper Body": "Focus on developing strength and definition in your chest, back, shoulders, and arms.",
+      "Lower Body": "Build strong legs and glutes with these targeted lower body exercises.",
+      "HIIT & Cardio": "Elevate your heart rate and burn calories with these high-intensity movements.",
+      "Core & Mobility": "Strengthen your core and improve flexibility with these targeted exercises."
+    };
+    
+    return descriptions[workoutName] || "A customized workout to help you reach your fitness goals.";
+  };
+
+  const getWorkoutTips = (workoutName: string) => {
+    const tips: { [key: string]: string[] } = {
+      "Full Body": [
+        "Rest at least 48 hours before working the same muscle groups again",
+        "Focus on compound movements that work multiple muscle groups",
+        "Adjust weights to challenge yourself while maintaining proper form"
+      ],
+      "Upper Body": [
+        "Balance pushing and pulling movements for overall development",
+        "Don't neglect the rear deltoids and upper back",
+        "For best results, keep your core engaged during all exercises"
+      ],
+      "Lower Body": [
+        "Drive through your heels on squats and lunges",
+        "Keep your knees aligned with your toes on all exercises",
+        "Engage your glutes at the top of hip hinge movements"
+      ],
+      "HIIT & Cardio": [
+        "Focus on intensity during work intervals",
+        "Control your breathing throughout the workout",
+        "Modify exercises as needed to match your fitness level"
+      ],
+      "Core & Mobility": [
+        "Focus on controlled movements rather than speed",
+        "Breathe through the exercises and avoid holding your breath",
+        "Engage your core by pulling your navel toward your spine"
+      ]
+    };
+    
+    return tips[workoutName] || [
+      "Focus on proper form over heavy weights or high reps",
+      "Stay hydrated throughout your workout",
+      "Listen to your body and adjust as needed"
+    ];
+  };
 
   return (
     <Box sx={{ width: '100%' }}>
-      <Paper elevation={3} sx={{ p: 6, mb: 5 }}>
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs 
-            value={value} 
-            onChange={handleChange} 
-            variant="scrollable"
-            scrollButtons="auto"
-            aria-label="workout plan tabs"
-          >
-            {workoutDays.map((day, index) => (
-              <Tab 
-                key={day.day} 
-                label={`${day.day}: ${day.name}`} 
-                {...a11yProps(index)} 
-              />
-            ))}
-            <Tab label="Tips for Success" {...a11yProps(workoutDays.length)} />
-          </Tabs>
-        </Box>
-
-        {workoutDays.map((day, index) => (
-          <TabPanel key={day.day} value={value} index={index}>
-            <Typography variant="h5" component="h3" gutterBottom>
-              {day.name} Workout
-            </Typography>
-            
-            <TableContainer component={Paper} elevation={2}>
-              <Table aria-label="workout exercise table">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Exercise</TableCell>
-                    <TableCell align="center">Sets</TableCell>
-                    <TableCell align="center">Reps</TableCell>
-                    <TableCell align="center">Rest</TableCell>
-                    <TableCell align="center">Video</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {day.exercises.map((exercise, exIndex) => (
-                    <TableRow
-                      key={`${day.day}-${exIndex}`}
-                      sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
-                      className="exercise-row"
-                    >
-                      <TableCell component="th" scope="row">
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                          <FitnessCenterIcon sx={{ mr: 1, color: 'primary.main' }} />
-                          {exercise.name}
-                        </Box>
-                      </TableCell>
-                      <TableCell align="center">{exercise.sets}</TableCell>
-                      <TableCell align="center">{exercise.reps}</TableCell>
-                      <TableCell align="center">
-                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <TimerIcon sx={{ mr: 0.5, fontSize: '1rem', color: 'text.secondary' }} />
-                          {exercise.rest}
-                        </Box>
-                      </TableCell>
-                      <TableCell align="center">
-                        <Tooltip title="Watch & Record Exercise">
-                          <Button
-                            variant="contained"
-                            size="small"
-                            startIcon={<VideoLibraryIcon />}
-                            onClick={() => handleVideoClick(day.day.replace('Day ', ''), exercise.name)}
-                            sx={{ borderRadius: 4 }}
-                            className="exercise-video-button"
-                          >
-                            Watch & Record
-                          </Button>
-                        </Tooltip>
-                      </TableCell>
+      {saveSuccess && (
+        <Alert severity="success" sx={{ mb: 3 }}>
+          Workout plan saved successfully!
+        </Alert>
+      )}
+      
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <Tabs 
+          value={tabValue} 
+          onChange={handleTabChange} 
+          variant="scrollable"
+          scrollButtons="auto"
+          aria-label="workout days tabs"
+        >
+          {workoutDays.map((day, index) => (
+            <Tab key={index} label={`${day.day}: ${day.name}`} />
+          ))}
+        </Tabs>
+      </Box>
+      
+      {workoutDays.map((day, index) => (
+        <div
+          key={index}
+          role="tabpanel"
+          hidden={tabValue !== index}
+          id={`workout-tabpanel-${index}`}
+          aria-labelledby={`workout-tab-${index}`}
+        >
+          {tabValue === index && (
+            <Box sx={{ p: 3 }}>
+              <Typography variant="h4" gutterBottom>
+                {day.name} Workout
+              </Typography>
+              
+              <Typography variant="body1" paragraph>
+                {getWorkoutDescription(day.name)}
+              </Typography>
+              
+              <TableContainer component={Paper} sx={{ mb: 4 }}>
+                <Table aria-label="workout table">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Exercise</TableCell>
+                      <TableCell align="center">Sets</TableCell>
+                      <TableCell align="center">Reps</TableCell>
+                      <TableCell align="center">Rest</TableCell>
+                      <TableCell align="center">Video</TableCell>
                     </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {day.exercises.map((exercise, i) => (
+                      <TableRow key={i}>
+                        <TableCell component="th" scope="row">
+                          {exercise.name}
+                        </TableCell>
+                        <TableCell align="center">{exercise.sets}</TableCell>
+                        <TableCell align="center">{exercise.reps}</TableCell>
+                        <TableCell align="center">{exercise.rest}</TableCell>
+                        <TableCell align="center">
+                          <Link to={`/video/${index + 1}/${encodeURIComponent(exercise.name)}`}>
+                            Watch Video
+                          </Link>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              
+              <Paper sx={{ p: 2, bgcolor: 'info.light', color: 'info.contrastText', mb: 4 }}>
+                <Typography variant="h6" gutterBottom>
+                  Workout Tips
+                </Typography>
+                <ul>
+                  {getWorkoutTips(day.name).map((tip, i) => (
+                    <li key={i}>
+                      <Typography variant="body1">{tip}</Typography>
+                    </li>
                   ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </TabPanel>
-        ))}
-
-        <TabPanel value={value} index={workoutDays.length}>
-          <Typography variant="h5" component="h3" gutterBottom>
-            Tips for Success
-          </Typography>
-          
-          <List>
-            {tips.map((tip, index) => (
-              <React.Fragment key={index}>
-                <ListItem>
-                  <ListItemIcon>
-                    <TipsAndUpdatesIcon color="primary" />
-                  </ListItemIcon>
-                  <ListItemText primary={tip} />
-                </ListItem>
-                {index < tips.length - 1 && <Divider variant="inset" component="li" />}
-              </React.Fragment>
-            ))}
-          </List>
-        </TabPanel>
+                </ul>
+              </Paper>
+            </Box>
+          )}
+        </div>
+      ))}
+      
+      <Box sx={{ mt: 4, display: 'flex', justifyContent: 'space-between' }}>
+        <Button 
+          variant="contained" 
+          color="primary" 
+          onClick={() => setShowSaveDialog(true)}
+        >
+          Save This Workout
+        </Button>
         
-        <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
-          <Button 
-            variant="contained" 
-            color="primary" 
-            onClick={onCreateNewPlan}
-            sx={{ mr: 2 }}
-          >
-            Create New Plan
+        <Button 
+          variant="outlined" 
+          onClick={onCreateNewPlan}
+        >
+          Create New Plan
+        </Button>
+      </Box>
+      
+      {/* Save Workout Dialog */}
+      <Dialog open={showSaveDialog} onClose={() => setShowSaveDialog(false)}>
+        <DialogTitle>Save Workout Plan</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Give your workout plan a name to save it for future reference.
+          </DialogContentText>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Workout Plan Name"
+            type="text"
+            fullWidth
+            variant="outlined"
+            value={planName}
+            onChange={(e) => setPlanName(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowSaveDialog(false)}>Cancel</Button>
+          <Button onClick={handleSaveWorkout} disabled={!planName.trim()}>
+            Save
           </Button>
-          <Button 
-            variant="outlined" 
-            color="primary"
-            startIcon={<GetAppIcon />}
-          >
-            Download Workout Plan (PDF)
-          </Button>
-        </Box>
-      </Paper>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

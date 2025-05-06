@@ -2,16 +2,25 @@
 
 import os
 import shutil
-from fastapi import FastAPI, File, UploadFile, HTTPException, Query, Request, Path
+import io
+import json
+import datetime
+import inspect
+from fastapi import FastAPI, File, UploadFile, HTTPException, Query, Request, Path, Body
 from fastapi.responses import JSONResponse, FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+from typing import List, Optional, Dict, Any
 import uvicorn
-import inspect
 
+# Import workout generation functions from your existing MVP
+from mvp import determine_exercises, create_workout_schedule, generate_pdf
+
+# Import exercise analysis modules
 import analyze_module
 
-app = FastAPI(title="Pushup Analysis API")
+app = FastAPI(title="Fitness Buddy API")
 
 # Get all analysis functions automatically
 analysis_functions = {}
@@ -45,6 +54,55 @@ async def log_requests(request: Request, call_next):
     print(f"Response status: {response.status_code}")
     return response
 
+# Data models for workout-related endpoints
+class UserInfo(BaseModel):
+    name: Optional[str] = None
+    age: int
+    gender: str
+    currentWeight: float
+    goalWeight: float
+    height: float
+    fitnessGoal: str
+    fitnessLevel: str
+    daysPerWeek: int
+    timePerSession: int
+    injuries: Optional[str] = ""
+    preferences: Optional[str] = ""
+    equipment: List[str]
+
+class Exercise(BaseModel):
+    name: str
+    sets: int
+    reps: str
+    rest: str
+
+class WorkoutDay(BaseModel):
+    day: str
+    name: str
+    exercises: List[Exercise]
+
+class WorkoutPlan(BaseModel):
+    id: Optional[int] = None
+    name: str
+    date_created: str
+    workout_plan: List[Dict[str, Any]]
+    user_data: Dict[str, Any]
+    time_per_session: int
+
+class WorkoutLog(BaseModel):
+    workout_name: str
+    date: Optional[str] = None
+    day: Optional[str] = None
+    exercise: Optional[str] = None
+    reps: Optional[int] = None
+    notes: str = ""
+
+# In-memory storage for demonstration purposes
+# In production, use a proper database
+SAVED_WORKOUTS = []
+WORKOUT_LOGS = {}
+
+# Video analysis endpoints
 @app.post("/analyze/{exercise_type}/")
 async def analyze_exercise_endpoint(
     exercise_type: str = Path(..., description="Type of exercise to analyze"),
@@ -104,7 +162,6 @@ async def analyze_exercise_endpoint(
         print("Error: Annotated video requested but not generated")
     
     return JSONResponse(content=payload)
-
 
 @app.get("/api/videos/{filename}")
 @app.head("/api/videos/{filename}")  # Add explicit support for HEAD requests
@@ -168,14 +225,7 @@ async def options_video(filename: str):
     print(f"Handled OPTIONS request for: {filename}")
     return response
 
-@app.get("/analyze_pushup/video/{video_name}")
-def get_video(video_name: str):
-    path = os.path.join(VIDEOS_DIR, video_name)
-    if not os.path.isfile(path):
-        raise HTTPException(status_code=404, detail="Video not found")
-    return FileResponse(path, media_type="video/mp4")
-
-# Debug endpoint to check video files
+# Debug endpoints for videos
 @app.get("/debug/videos")
 def list_videos():
     """List all videos in the videos directory"""
@@ -209,12 +259,190 @@ def debug_video(video_name: str):
     
     return response
 
-# Simple endpoint for CORS testing
-@app.options("/")
-@app.get("/")
-def root():
-    return {"message": "Pushup Analysis API is running"}
+# Endpoint to list available exercise types
+@app.get("/exercises/")
+async def list_exercises():
+    return {"available_exercises": list(analysis_functions.keys())}
 
+# Workout generation endpoints
+@app.post("/api/generate-workout")
+async def generate_workout(user_info: UserInfo):
+    """Generate a workout plan based on user data"""
+    try:
+        # Ensure equipment is a list
+        if not user_info.equipment or len(user_info.equipment) == 0:
+            user_info.equipment = ["None (bodyweight only)"]
+        
+        # Generate the workout plan using functions from mvp.py
+        selected_exercises = determine_exercises(
+            user_info.equipment,
+            user_info.fitnessGoal,
+            user_info.fitnessLevel,
+            user_info.injuries or ""
+        )
+        
+        workout_plan = create_workout_schedule(
+            selected_exercises,
+            user_info.daysPerWeek,
+            user_info.timePerSession,
+            user_info.fitnessLevel
+        )
+        
+        # Return the generated workout plan
+        print(f"Workout plan generated successfully for {user_info.name or 'user'}")
+        return {
+            "success": True,
+            "workout_plan": workout_plan
+        }
+    
+    except Exception as e:
+        print(f"Error generating workout plan: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/save-workout")
+async def save_workout(workout: WorkoutPlan):
+    """Save a workout plan"""
+    try:
+        # Add a unique ID for the workout
+        workout_id = len(SAVED_WORKOUTS) + 1
+        workout_data = workout.dict()
+        workout_data["id"] = workout_id
+        
+        # Save the workout plan (in memory for this example)
+        SAVED_WORKOUTS.append(workout_data)
+        
+        # Initialize workout logs for this plan
+        WORKOUT_LOGS[workout.name] = []
+        
+        print(f"Workout plan '{workout.name}' saved with ID {workout_id}")
+        return {
+            "success": True,
+            "message": f"Workout plan '{workout.name}' saved successfully!",
+            "workout_id": workout_id
+        }
+    
+    except Exception as e:
+        print(f"Error saving workout plan: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/saved-workouts")
+async def get_saved_workouts():
+    """Get all saved workout plans"""
+    try:
+        print(f"Returning {len(SAVED_WORKOUTS)} saved workout plans")
+        return {
+            "success": True,
+            "workouts": SAVED_WORKOUTS
+        }
+    
+    except Exception as e:
+        print(f"Error fetching saved workouts: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/workout/{workout_id}")
+async def get_workout(workout_id: int):
+    """Get a specific saved workout plan"""
+    try:
+        # Find the workout with the given ID
+        workout = next((w for w in SAVED_WORKOUTS if w["id"] == workout_id), None)
+        
+        if not workout:
+            print(f"Workout with ID {workout_id} not found")
+            raise HTTPException(status_code=404, detail=f"Workout with ID {workout_id} not found")
+        
+        print(f"Retrieved workout plan with ID {workout_id}")
+        return {
+            "success": True,
+            "workout": workout
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error fetching workout: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/log-workout")
+async def log_workout(log_data: WorkoutLog):
+    """Log a completed workout"""
+    try:
+        workout_name = log_data.workout_name
+        if not workout_name:
+            raise HTTPException(status_code=400, detail="Workout name is required")
+        
+        # Ensure we have a log entry for this workout
+        if workout_name not in WORKOUT_LOGS:
+            WORKOUT_LOGS[workout_name] = []
+        
+        # Use current date if not provided
+        if not log_data.date:
+            log_data.date = datetime.datetime.now().strftime("%Y-%m-%d")
+        
+        # Add log entry
+        WORKOUT_LOGS[workout_name].append(log_data.dict())
+        
+        print(f"Workout logged for '{workout_name}' on {log_data.date}")
+        return {
+            "success": True,
+            "message": "Workout logged successfully!"
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error logging workout: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/workout-logs")
+async def get_workout_logs():
+    """Get all workout logs"""
+    try:
+        total_logs = sum(len(logs) for logs in WORKOUT_LOGS.values())
+        print(f"Returning {total_logs} workout logs across {len(WORKOUT_LOGS)} workout plans")
+        return {
+            "success": True,
+            "logs": WORKOUT_LOGS
+        }
+    
+    except Exception as e:
+        print(f"Error fetching workout logs: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/download-workout/{workout_id}")
+async def download_workout(workout_id: int):
+    """Generate and return a PDF of the workout plan"""
+    try:
+        # Find the workout with the given ID
+        workout = next((w for w in SAVED_WORKOUTS if w["id"] == workout_id), None)
+        
+        if not workout:
+            print(f"Workout with ID {workout_id} not found for PDF generation")
+            raise HTTPException(status_code=404, detail=f"Workout with ID {workout_id} not found")
+        
+        # Generate PDF using function from mvp.py
+        pdf_bytes = generate_pdf(
+            workout_plan=workout["workout_plan"],
+            user_data=workout["user_data"],
+            time_per_session=workout["time_per_session"]
+        )
+        
+        print(f"PDF generated for workout plan with ID {workout_id}")
+        # Return the PDF
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="workout_plan_{workout_id}.pdf"'
+            }
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error generating PDF: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# API status endpoint
 @app.get("/api_status")
 def api_status():
     """
@@ -237,13 +465,22 @@ def api_status():
             "writable": videos_dir_writable,
             "file_count": len(video_files),
             "example_files": video_files[:5] if video_files else []
+        },
+        "exercise_analysis": {
+            "available_exercise_types": list(analysis_functions.keys()),
+            "count": len(analysis_functions)
+        },
+        "workout_generator": {
+            "saved_workouts_count": len(SAVED_WORKOUTS),
+            "workout_logs_count": len(WORKOUT_LOGS)
         }
     }
 
-# Endpoint to list available exercise types
-@app.get("/exercises/")
-async def list_exercises():
-    return {"available_exercises": list(analysis_functions.keys())}
+# Simple endpoint for CORS testing
+@app.options("/")
+@app.get("/")
+def root():
+    return {"message": "Fitness Buddy API is running"}
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
