@@ -420,7 +420,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = () => {
           </Button>
         </Box>
         
-        {!isExerciseSupported && (
+        {/* {!isExerciseSupported && (
           <Alert severity="warning" sx={{ mb: 2 }}>
             <Typography variant="subtitle2">
               This exercise ({decodedExercise}) is not supported for automated analysis.
@@ -429,7 +429,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = () => {
               Available exercises: {availableExercises.join(', ')}
             </Typography>
           </Alert>
-        )}
+        )} */}
         
         {videoDebugMode && (
           <Alert severity="info" sx={{ mb: 2 }}>
