@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import uvicorn
 from openai import OpenAI
-from secrets_manager import secret_manager
+from secrets_manager import SecretManager
 
 # Import workout generation functions from your existing MVP
 from mvp import determine_exercises, create_workout_schedule, generate_pdf
@@ -25,7 +25,7 @@ import analyze_module
 app = FastAPI(title="Fitness Buddy API")
 
 try:
-    openai_api_key = secret_manager.get_openai_key()
+    openai_api_key = SecretManager.get_openai_key()
     client = OpenAI(api_key=openai_api_key)
 except Exception as e:
     # Fallback to environment variable for local development
