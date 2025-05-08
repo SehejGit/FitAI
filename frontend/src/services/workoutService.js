@@ -38,6 +38,7 @@ export const generateWorkoutPlan = async (formData) => {
  */
 export const saveWorkoutPlan = async (workout) => {
   try {
+    console.log('Saving workout data:', workout);
     const response = await fetch(`${API_URL}/api/save-workout`, {
       method: 'POST',
       headers: {
@@ -50,7 +51,9 @@ export const saveWorkoutPlan = async (workout) => {
       throw new Error(`HTTP error! Status: ${response.status}`);
     }
 
-    return await response.json();
+    const result = await response.json();
+    console.log('Save workout response:', result);
+    return result;
   } catch (error) {
     console.error('Error saving workout plan:', error);
     throw error;
@@ -63,13 +66,16 @@ export const saveWorkoutPlan = async (workout) => {
  */
 export const getSavedWorkouts = async () => {
   try {
+    console.log('Fetching saved workouts from API');
     const response = await fetch(`${API_URL}/api/saved-workouts`);
 
     if (!response.ok) {
       throw new Error(`HTTP error! Status: ${response.status}`);
     }
 
-    return await response.json();
+    const result = await response.json();
+    console.log('Fetched saved workouts:', result);
+    return result;
   } catch (error) {
     console.error('Error fetching saved workouts:', error);
     throw error;
@@ -137,25 +143,6 @@ export const getWorkoutLogs = async () => {
     return await response.json();
   } catch (error) {
     console.error('Error fetching workout logs:', error);
-    throw error;
-  }
-};
-
-/**
- * Get available exercise types for form analysis
- * @returns {Promise} - Promise with available exercise types
- */
-export const getExerciseTypes = async () => {
-  try {
-    const response = await fetch(`${API_URL}/exercises/`);
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! Status: ${response.status}`);
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching exercise types:', error);
     throw error;
   }
 };
