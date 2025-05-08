@@ -5,7 +5,7 @@
 // export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
 // Changed to refer to the deployed backend
-export const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://api.allorigins.win/raw?url=https://34-8-10-114.nip.io';
+export const API_BASE_URL = process.env.REACT_APP_API_URL || '';  
 
 export const DISPLAY_TO_API_MAPPING = {
   'Push-ups': 'pushups'
