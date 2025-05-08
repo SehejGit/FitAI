@@ -1367,9 +1367,9 @@ def analyze_burpees(video_path, output_video_path=None):
     fps = int(cap.get(cv2.CAP_PROP_FPS))
     
     # Setup output video writer if path is provided
+    out = None
     if output_video_path:
-        fourcc = cv2.VideoWriter_fourcc(*'avc1')
-        out = cv2.VideoWriter(output_video_path, fourcc, fps, (frame_width, frame_height))
+        out = setup_video_writer(output_video_path, fps, frame_width, frame_height)
     
     # Variables to track burpee state
     burpee_count = 0
@@ -1382,7 +1382,6 @@ def analyze_burpees(video_path, output_video_path=None):
     plank_quality_scores = []       # For plank position quality
     jump_height_scores = []         # For jump height
     
-    # Add debugging info
     print(f"Video dimensions: {frame_width}x{frame_height}, FPS: {fps}")
     
     while cap.isOpened():
@@ -1415,30 +1414,20 @@ def analyze_burpees(video_path, output_video_path=None):
             if good_frames == 1:
                 print(f"Detected {len(landmarks)} landmarks")
             
-            # Get key points for burpee analysis
-            nose = [landmarks[mp_pose.PoseLandmark.NOSE.value].x,
-                   landmarks[mp_pose.PoseLandmark.NOSE.value].y]
-            left_shoulder = [landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].x,
-                            landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].y]
-            right_shoulder = [landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER.value].x,
-                             landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER.value].y]
-            left_hip = [landmarks[mp_pose.PoseLandmark.LEFT_HIP.value].x,
-                       landmarks[mp_pose.PoseLandmark.LEFT_HIP.value].y]
-            right_hip = [landmarks[mp_pose.PoseLandmark.RIGHT_HIP.value].x,
-                        landmarks[mp_pose.PoseLandmark.RIGHT_HIP.value].y]
-            left_knee = [landmarks[mp_pose.PoseLandmark.LEFT_KNEE.value].x,
-                        landmarks[mp_pose.PoseLandmark.LEFT_KNEE.value].y]
-            right_knee = [landmarks[mp_pose.PoseLandmark.RIGHT_KNEE.value].x,
-                         landmarks[mp_pose.PoseLandmark.RIGHT_KNEE.value].y]
-            left_ankle = [landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value].x,
-                         landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value].y]
-            right_ankle = [landmarks[mp_pose.PoseLandmark.RIGHT_ANKLE.value].x,
-                          landmarks[mp_pose.PoseLandmark.RIGHT_ANKLE.value].y]
-            left_wrist = [landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].x,
-                         landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].y]
-            right_wrist = [landmarks[mp_pose.PoseLandmark.RIGHT_WRIST.value].x,
-                          landmarks[mp_pose.PoseLandmark.RIGHT_WRIST.value].y]
+            # Get key points for burpee analysis using nc helper
+            def nc(idx): return [landmarks[idx].x, landmarks[idx].y]
             
+            nose = nc(mp_pose.PoseLandmark.NOSE.value)
+            left_shoulder = nc(mp_pose.PoseLandmark.LEFT_SHOULDER.value)
+            right_shoulder = nc(mp_pose.PoseLandmark.RIGHT_SHOULDER.value)
+            left_hip = nc(mp_pose.PoseLandmark.LEFT_HIP.value)
+            right_hip = nc(mp_pose.PoseLandmark.RIGHT_HIP.value)
+            left_knee = nc(mp_pose.PoseLandmark.LEFT_KNEE.value)
+            right_knee = nc(mp_pose.PoseLandmark.RIGHT_KNEE.value)
+            left_ankle = nc(mp_pose.PoseLandmark.LEFT_ANKLE.value)
+            right_ankle = nc(mp_pose.PoseLandmark.RIGHT_ANKLE.value)
+            left_wrist = nc(mp_pose.PoseLandmark.LEFT_WRIST.value)
+            right_wrist = nc(mp_pose.PoseLandmark.RIGHT_WRIST.value)
             
             # Calculate key metrics for burpee analysis
             
@@ -1461,7 +1450,6 @@ def analyze_burpees(video_path, output_video_path=None):
             )
             plank_quality = (max(0, 1 - shoulder_to_wrist_x_diff / 0.2) + max(0, 1 - abs(body_straight_angle - 180) / 30)) / 2
             plank_quality_scores.append(plank_quality)
-            
             
             # Detect burpee stages based on body position and angles
             
@@ -1538,11 +1526,11 @@ def analyze_burpees(video_path, output_video_path=None):
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)
                     
         # Write frame to output video
-        if output_video_path:
+        if out:
             out.write(annotated_image)
                 
     cap.release()
-    if output_video_path:
+    if out:
         out.release()
     
     # Only analyze if we have enough valid frames
@@ -1600,12 +1588,10 @@ def analyze_bicycle_crunches(video_path, output_video_path=None):
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = int(cap.get(cv2.CAP_PROP_FPS))
     
-    # Setup output video writer if path is provided
+    writer = None
     if output_video_path:
-        fourcc = cv2.VideoWriter_fourcc(*'avc1')
-        out = cv2.VideoWriter(output_video_path, fourcc, fps, (frame_width, frame_height))
+        writer = cv2.VideoWriter(output_video_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (frame_width, frame_height))
     
-    # Variables to track bicycle crunch state
     crunch_count = 0
     crunch_stage = None  # "left", "right", "neutral"
     last_elbow_knee_diff = 0
@@ -1618,19 +1604,15 @@ def analyze_bicycle_crunches(video_path, output_video_path=None):
     elbow_to_knee_scores = []        # For proper elbow to opposite knee connection
     hip_angle_scores = []            # For proper leg extension
     
-    # Add debugging info
     print(f"Video dimensions: {frame_width}x{frame_height}, FPS: {fps}")
     
     while cap.isOpened():
         success, image = cap.read()
         if not success:
             break
-            
-        # Convert to RGB for MediaPipe
-        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        results = pose.process(image_rgb)
         
-        # Draw pose landmarks on the image
+        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        results = pose_tracker.process(image_rgb)
         annotated_image = image.copy()
         
         if results.pose_landmarks:
@@ -1646,10 +1628,6 @@ def analyze_bicycle_crunches(video_path, output_video_path=None):
             )
             
             landmarks = results.pose_landmarks.landmark
-            
-            # Debug output to see what landmarks are detected
-            if good_frames == 1:
-                print(f"Detected {len(landmarks)} landmarks")
             
             # Get key points for bicycle crunch analysis
             nose = [landmarks[mp_pose.PoseLandmark.NOSE.value].x,
@@ -1682,7 +1660,6 @@ def analyze_bicycle_crunches(video_path, output_video_path=None):
             # Calculate key metrics for bicycle crunch analysis
             
             # 1. Upper back lift (shoulders off ground)
-            # Check the vertical position of shoulders relative to hips
             shoulder_y = (left_shoulder[1] + right_shoulder[1]) / 2
             hip_y = (left_hip[1] + right_hip[1]) / 2
             upper_back_lift = max(0, min(1, (hip_y - shoulder_y) / 0.1))  # Normalizing
@@ -1709,9 +1686,7 @@ def analyze_bicycle_crunches(video_path, output_video_path=None):
                 
                 if crunch_stage == "left":
                     crunch_stage = "right"
-                    # Add the connection quality to scores
                     elbow_to_knee_scores.append(right_connection)
-                    # Add hip angle to scores
                     hip_angle_scores.append(left_hip_angle)  # Extended leg angle
                 elif crunch_stage == "right":
                     crunch_stage = "left" 
@@ -1720,12 +1695,9 @@ def analyze_bicycle_crunches(video_path, output_video_path=None):
                     crunch_count += 1  # Count each complete cycle (both sides) as one rep
                     print(f"Bicycle crunch #{crunch_count} completed")
                 else:
-                    # First detection
                     crunch_stage = "left" if elbow_knee_diff < 0 else "right"
             
-            # Update last difference for next frame comparison
             last_elbow_knee_diff = elbow_knee_diff
-            
             
             # Visualize metrics
             active_side = "LEFT" if crunch_stage == "left" else "RIGHT"
@@ -1748,18 +1720,18 @@ def analyze_bicycle_crunches(video_path, output_video_path=None):
             frames_without_detection += 1
             if frames_without_detection % 30 == 0:
                 print(f"No pose detection for {frames_without_detection} frames")
-                
+        
         # Display bicycle crunch count
         cv2.putText(annotated_image, f'Crunches: {crunch_count}', (10, 130), 
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)
-                    
+        
         # Write frame to output video
-        if output_video_path:
-            out.write(annotated_image)
-                
+        if writer and writer.isOpened():
+            writer.write(annotated_image)
+    
     cap.release()
-    if output_video_path:
-        out.release()
+    if writer and writer.isOpened():
+        writer.release()
     
     # Only analyze if we have enough valid frames
     if good_frames < 20:
@@ -1797,7 +1769,7 @@ def analyze_bicycle_crunches(video_path, output_video_path=None):
     
     if not feedback["feedback"]:
         feedback["feedback"].append("Excellent bicycle crunch form! You're maintaining good shoulder elevation and proper elbow to knee connection.")
-        
+    
     return feedback
 
 def analyze_band_pull_apart(video_path, output_video_path=None):
@@ -2466,10 +2438,10 @@ def analyze_mountain_climbers(video_path, output_video_path=None):
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = cap.get(cv2.CAP_PROP_FPS)
     
-    # Video writer setup
-    writer = cv2.VideoWriter(output_video_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height)) if output_video_path else None
+    writer = None
+    if output_video_path:
+        writer = cv2.VideoWriter(output_video_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
     
-    # Metrics
     rep_count = 0
     stage = None  # "up" or "down"
     knee_angles = []
@@ -2482,9 +2454,9 @@ def analyze_mountain_climbers(video_path, output_video_path=None):
         ret, frame = cap.read()
         if not ret:
             break
-            
+        
         image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = pose.process(image)
+        results = pose_tracker.process(image)
         annotated_image = frame.copy()
         
         if results.pose_landmarks:
@@ -2524,7 +2496,6 @@ def analyze_mountain_climbers(video_path, output_video_path=None):
             hip_angle_l = calculate_angle(shoulder_l, hip_l, knee_l)
             
             # Calculate back straightness (shoulder to hip to knee alignment)
-            # For plank position in mountain climbers, we want this to be close to 180 degrees
             back_angle = calculate_angle(mid_shoulder, mid_hip, knee_r)  # Using right knee as reference
             back_straightness_score = abs(180 - back_angle)  # Lower is better (0 = perfectly straight)
             
@@ -2574,11 +2545,11 @@ def analyze_mountain_climbers(video_path, output_video_path=None):
             mp_drawing.draw_landmarks(
                 annotated_image, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
             
-        if writer:
+        if writer and writer.isOpened():
             writer.write(annotated_image)
     
     cap.release()
-    if writer:
+    if writer and writer.isOpened():
         writer.release()
     
     # Analysis and feedback
@@ -2660,9 +2631,9 @@ def analyze_russian_twists(video_path, output_video_path=None):
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = int(cap.get(cv2.CAP_PROP_FPS))
 
+    writer = None
     if output_video_path:
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        out = cv2.VideoWriter(output_video_path, fourcc, fps, (frame_width, frame_height))
+        writer = cv2.VideoWriter(output_video_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (frame_width, frame_height))
 
     # Russian twist variables
     twist_count = 0
@@ -2676,16 +2647,6 @@ def analyze_russian_twists(video_path, output_video_path=None):
     v_positions = []  # V-position (legs raised)
     
     print(f"Video dimensions: {frame_width}x{frame_height}, FPS: {fps}")
-
-    def calculate_angle(a, b, c):
-        a = np.array(a)
-        b = np.array(b)
-        c = np.array(c)
-        radians = np.arctan2(c[1] - b[1], c[0] - b[0]) - np.arctan2(a[1] - b[1], a[0] - b[0])
-        angle = np.abs(radians * 180.0 / np.pi)
-        if angle > 180.0:
-            angle = 360 - angle
-        return angle
 
     while cap.isOpened():
         success, image = cap.read()
@@ -2806,12 +2767,13 @@ def analyze_russian_twists(video_path, output_video_path=None):
             cv2.putText(annotated_image, f"State: {twist_state}", (10, 150),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 255), 2, cv2.LINE_AA)
 
-        if output_video_path:
-            out.write(annotated_image)
+        # Write frame to output video if writer exists and is open
+        if writer and writer.isOpened():
+            writer.write(annotated_image)
 
     cap.release()
-    if output_video_path:
-        out.release()
+    if writer:
+        writer.release()
     
     # Calculate averages and prepare feedback
     if len(torso_angles) < 10:
@@ -2987,7 +2949,7 @@ def analyze_band_tricep_pushdowns(video_path, output_video_path=None):
     if fa["avg_neck_deg"] < 170:
         feedback.append("Keep head neutral, gaze forward.")
     if fa["avg_shoulder_dy"] > 0.05 * h:
-        feedback.append("Don’t shrug, keep shoulders down.")
+        feedback.append("Don't shrug, keep shoulders down.")
 
     view = fa["dominant_view"]
     if view == "front":
@@ -3108,7 +3070,7 @@ def analyze_banded_hip_thrusts(video_path, output_video_path=None):
     if fa["avg_knee_deg"] < 85 or fa["avg_knee_deg"] > 95:
         feedback.append("Keep shins vertical—hip-knee-ankle ≈90°.")
     if fa["avg_neck_deg"] < 170:
-        feedback.append("Maintain neutral neck, don’t tuck chin.")
+        feedback.append("Maintain neutral neck, don't tuck chin.")
 
     view = fa["dominant_view"]
     if view == "front":
