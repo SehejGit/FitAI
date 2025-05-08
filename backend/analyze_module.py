@@ -58,7 +58,7 @@ def detect_orientation(lm):
 
 #exercises 
 
-def analyze_pushups(video_path, output_video_path=None):
+def analyze_push_ups(video_path, output_video_path=None):
     """
     Analyzes pushup form from a video using MediaPipe pose detection.
     

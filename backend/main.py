@@ -121,6 +121,7 @@ async def analyze_exercise_endpoint(
     
     # 1) Save the upload to disk with proper filename handling
     safe_filename = file.filename.replace(" ", "_").lower()
+    safe_filename = file.filename.replace("-", "_").lower()
     input_path = os.path.join(VIDEOS_DIR, safe_filename)
     
     with open(input_path, "wb") as buffer:
