@@ -2573,33 +2573,33 @@ def analyze_mountain_climbers(video_path, output_video_path=None):
     elif avg_knee < 70:
         feedback["feedback"].append("Avoid overbending knees, maintain controlled motion")
     else:
-        feedback["feedback"].append("Excellent knee movement - good range of motion")
+        feedback["feedback"].append("Excellent knee movement, good range of motion")
         
     # Hip stability feedback - can play around with this more
     if avg_hip < 150:
-        feedback["feedback"].append("Engage core to stabilize hips - slight rocking detected")
+        feedback["feedback"].append("Engage core to stabilize hips, slight rocking detected")
     elif avg_hip < 170:
-        feedback["feedback"].append("Moderate hip stability - focus on keeping hips level")
+        feedback["feedback"].append("Moderate hip stability, focus on keeping hips level")
     else:
-        feedback["feedback"].append("Excellent hip stability - minimal movement detected")
+        feedback["feedback"].append("Excellent hip stability, minimal movement detected")
         
     # Shoulder stability
     if avg_shoulder_diff > 0.15 * height:
-        feedback["feedback"].append("Significant shoulder movement - keep shoulders square")
+        feedback["feedback"].append("Significant shoulder movement, keep shoulders square")
     elif avg_shoulder_diff > 0.08 * height:
-        feedback["feedback"].append("Minor shoulder tilt - focus on balanced movement")
+        feedback["feedback"].append("Minor shoulder tilt,focus on balanced movement")
     else:
-        feedback["feedback"].append("Excellent shoulder stability - maintaining good position")
+        feedback["feedback"].append("Excellent shoulder stability, maintaining good position")
     
     # Revised back straightness feedback 
     if avg_back_straightness > 45:
-        feedback["feedback"].append("Noticeable back arch/sag - engage core to flatten back")
+        feedback["feedback"].append("Noticeable back arch, engage core to flatten back")
     elif avg_back_straightness > 25:
-        feedback["feedback"].append("Moderate back alignment - focus on straight line from shoulders to knees")
+        feedback["feedback"].append("Moderate back alignment, focus on straight line from shoulders to knees")
     elif avg_back_straightness > 15:
-        feedback["feedback"].append("Good back alignment - minor adjustments could improve form")
+        feedback["feedback"].append("Good back alignment, minor adjustments could improve form")
     else:
-        feedback["feedback"].append("Excellent back alignment - maintaining perfect plank position")
+        feedback["feedback"].append("Excellent back alignment ,  maintaining perfect plank position")
     
     # Overall form assessment
     good_metrics = 0
@@ -2835,7 +2835,7 @@ def analyze_russian_twists(video_path, output_video_path=None):
     
     # 5. Range of motion feedback
     if angle_variation < 30:
-        feedback["feedback"].append("Increase your rotation range - try to touch the floor on each side.")
+        feedback["feedback"].append("Increase your rotation range, try to touch the floor on each side.")
     elif angle_variation > 90:
         feedback["feedback"].append("Great range of motion in your twists!")
     
@@ -2942,15 +2942,15 @@ def analyze_band_tricep_pushdowns(video_path, output_video_path=None):
     # tricep-specific feedback stays exactly as you defined it
     feedback = []
     if fa["min_elbow_deg"] > 110:
-        feedback.append("Pull all the way down—start with elbows ~90°.")
+        feedback.append("Pull all the way down, start with elbows ~90°.")
     if fa["max_elbow_deg"] < 160:
-        feedback.append("Fully extend at bottom—aim for >160° elbows.")
+        feedback.append("Fully extend at bottom, aim for >160° elbows.")
     if abs(fa["avg_torso_deg"] - 180) > 10:
-        feedback.append("Stand upright—avoid leaning forward/backward.")
+        feedback.append("Stand upright, avoid leaning forward/backward.")
     if fa["avg_neck_deg"] < 170:
-        feedback.append("Keep head neutral—gaze forward.")
+        feedback.append("Keep head neutral, gaze forward.")
     if fa["avg_shoulder_dy"] > 0.05 * h:
-        feedback.append("Don’t shrug—keep shoulders down.")
+        feedback.append("Don’t shrug, keep shoulders down.")
 
     view = fa["dominant_view"]
     if view == "front":
@@ -3065,13 +3065,13 @@ def analyze_banded_hip_thrusts(video_path, output_video_path=None):
     # tricep-pushdown style feedback (but hip-thrust specific thresholds)
     feedback = []
     if fa["min_hip_deg"] < 70:
-        feedback.append("Drive hips higher—aim closer to 180° at the top.")
+        feedback.append("Drive hips higher, aim closer to 180° at the top.")
     if fa["max_hip_deg"] < 160:
         feedback.append("Fully extend hips at top (>160°).")
     if fa["avg_knee_deg"] < 85 or fa["avg_knee_deg"] > 95:
         feedback.append("Keep shins vertical—hip-knee-ankle ≈90°.")
     if fa["avg_neck_deg"] < 170:
-        feedback.append("Maintain neutral neck—don’t tuck chin.")
+        feedback.append("Maintain neutral neck, don’t tuck chin.")
 
     view = fa["dominant_view"]
     if view == "front":
@@ -3174,9 +3174,9 @@ def analyze_leg_extensions(video_path, output_video_path=None):
 
     feedback = []
     if fa["min_knee_deg"] > 100:
-        feedback.append("Lower more—get knee closer to 90° at start.")
+        feedback.append("Lower more, get knee closer to 90° at start.")
     if fa["max_knee_deg"] < 160:
-        feedback.append("Extend fully—aim for >160° at top.")
+        feedback.append("Extend fully, aim for >160° at top.")
     if fa["avg_neck_deg"] < 170:
         feedback.append("Keep head neutral.")
 
@@ -3184,9 +3184,9 @@ def analyze_leg_extensions(video_path, output_video_path=None):
     if view == "front":
         feedback.append("Front view: watch both legs extend evenly.")
     elif view == "left":
-        feedback.append("Left side: ensure left knee tracks smoothly.")
+        feedback.append("Left side, ensure left knee tracks smoothly.")
     else:
-        feedback.append("Right side: ensure right knee tracks smoothly.")
+        feedback.append("Right side, ensure right knee tracks smoothly.")
 
     if not feedback:
         feedback.append("Great leg extension form!")
@@ -3283,9 +3283,9 @@ def analyze_leg_curls(video_path, output_video_path=None):
     # exercise-specific feedback
     feedback = []
     if fa["max_knee_deg"] < 160:
-        feedback.append("Extend leg more at start—aim for >160°.")
+        feedback.append("Extend leg more at start, aim for >160°.")
     if fa["min_knee_deg"] > 60:
-        feedback.append("Curl heels closer to glutes—aim for <60°.")
+        feedback.append("Curl heels closer to glutes, aim for <60°.")
     if fa["avg_neck_deg"] < 170:
         feedback.append("Keep head neutral.")
 
@@ -3408,11 +3408,11 @@ def analyze_hip_abduction_adduction(video_path, output_video_path=None):
 
     feedback = []
     if fa["max_hip_deg"] < 25:
-        feedback.append("Increase abduction range—aim ~30°.")
+        feedback.append("Increase abduction range, aim ~30°.")
     if fa["min_hip_deg"] > 10:
         feedback.append("Bring leg fully across midline on adduction (<10°).")
     if fa["avg_shoulder_dy"] > 0.05 * h:
-        feedback.append("Keep shoulders level—avoid hip hiking.")
+        feedback.append("Keep shoulders level, avoid hip hiking.")
     if fa["avg_neck_deg"] < 170:
         feedback.append("Maintain neutral neck.")
 
@@ -3518,11 +3518,11 @@ def analyze_cable_crunches(video_path, output_video_path=None):
 
     feedback = []
     if fa["max_hip_deg"] < 160:
-        feedback.append("Crunch deeper—aim hip flexion ~90°.")
+        feedback.append("Crunch deeper, aim hip flexion ~90°.")
     if fa["min_hip_deg"] > 100:
         feedback.append("Return fully to upright (>160°).")
     if fa["avg_neck_deg"] < 170:
-        feedback.append("Tuck chin—keep neck neutral.")
+        feedback.append("Tuck chin, keep neck neutral.")
 
     view = fa["dominant_view"]
     if view == "front":
@@ -3626,11 +3626,11 @@ def analyze_ab_machine(video_path, output_video_path=None):
 
     feedback = []
     if fa["max_hip_deg"] < 160:
-        feedback.append("Crunch deeper—aim ~90° hip flexion.")
+        feedback.append("Crunch deeper, aim ~90° hip flexion.")
     if fa["min_hip_deg"] > 100:
         feedback.append("Return upright (>160°).")
     if fa["avg_neck_deg"] < 170:
-        feedback.append("Tuck chin—keep neck neutral.")
+        feedback.append("Tuck chin, keep neck neutral.")
 
     view = fa["dominant_view"]
     if view == "front":
@@ -3641,7 +3641,7 @@ def analyze_ab_machine(video_path, output_video_path=None):
         feedback.append("Right: ensure side flexion visible.")
 
     if not feedback:
-        feedback.append("Great ab-machine form!")
+        feedback.append("Great ab machine form!")
 
     return {
         "rep_count": rep_count,
@@ -3734,9 +3734,9 @@ def analyze_hanging_leg_raises(video_path, output_video_path=None):
 
     feedback = []
     if fa["max_hip_deg"] < 90:
-        feedback.append("Lift knees/legs higher—aim for ~90° hip flexion.")
+        feedback.append("Lift knees/legs higher, aim for ~90° hip flexion.")
     if fa["min_hip_deg"] > 160:
-        feedback.append("Lower fully—aim for hip angle <160°.")
+        feedback.append("Lower fully, aim for hip angle <160°.")
     if fa["avg_neck_deg"] < 170:
         feedback.append("Keep neck neutral.")
 
@@ -3842,9 +3842,9 @@ def analyze_assisted_pullups(video_path, output_video_path=None):
 
     feedback = []
     if fa["max_elbow_deg"] < 160:
-        feedback.append("Lower fully—arms straight >160°.")
+        feedback.append("Lower fully, arms straight >160°.")
     if fa["min_elbow_deg"] > 50:
-        feedback.append("Pull higher—chin over bar (<50° elbow).")
+        feedback.append("Pull higher, chin over bar (<50° elbow).")
     if fa["avg_neck_deg"] < 170:
         feedback.append("Keep neck neutral.")
 
@@ -3857,7 +3857,7 @@ def analyze_assisted_pullups(video_path, output_video_path=None):
         feedback.append("Right: ensure right side pulls evenly.")
 
     if not feedback:
-        feedback.append("Great pull-up form!")
+        feedback.append("Great pullup form!")
 
     return {
         "rep_count"    : rep_count,
@@ -3980,13 +3980,13 @@ def analyze_pullups(video_path, output_video_path=None):
 
     feedback = []
     if bottom_angle > 100:
-        feedback.append("Not pulling high enough—chin should clear the bar (<50°).")
+        feedback.append("Not pulling high enough, chin should clear the bar (<50°).")
     if top_angle < 160:
-        feedback.append("Not fully extending—arms should be straight at bottom (>160°).")
+        feedback.append("Not fully extending, arms should be straight at bottom (>160°).")
     if avg_align < 0.8:
-        feedback.append("Body not straight—keep a rigid torso throughout the pull-up.")
+        feedback.append("Body not straight keep a rigid torso throughout the pull-up.")
     if not feedback:
-        feedback.append("Excellent pull-up form!")
+        feedback.append("Excellent pullup form!")
 
     return {
         "pullup_count": rep_count,
@@ -4189,9 +4189,9 @@ def analyze_plank_shoulder_taps(video_path, output_video_path=None):
     }
 
     if avg_align < 80:
-        result["feedback"].append("Keep your hips level and core tight—reduce sag or piking.")
+        result["feedback"].append("Keep your hips level and core tight.")
     if tap_count == 0:
-        result["feedback"].append("No taps counted—ensure your wrists reach across to the shoulder.")
+        result["feedback"].append("No taps counted, ensure your wrists reach across to the shoulder.")
     if not result["feedback"]:
         result["feedback"].append("Great control on your plank taps!")
 
@@ -4304,17 +4304,17 @@ def analyze_pike_push_ups(video_path, output_video_path=None):
 
     feedback = []
     if fa["min_elbow_deg"] > 100:
-        feedback.append("Go deeper—aim for ~90° at your elbows.")
+        feedback.append("Go deeper, aim for ~90° at your elbows.")
     if fa["max_elbow_deg"] < 150:
-        feedback.append("Press all the way up—fully extend at the top (>150°).")
+        feedback.append("Press all the way up, fully extend at the top (>150°).")
     if fa["avg_knee_pct"] < 90:
-        feedback.append("Keep your legs straight—avoid letting knees bend.")
+        feedback.append("Keep your legs straight, avoid letting knees bend.")
     if fa["avg_hip_deg"] > 110:
         feedback.append("Raise your hips higher into the pike.")
     elif fa["avg_hip_deg"] < 70:
-        feedback.append("Lower your hips slightly—avoid an overly acute pike.")
+        feedback.append("Lower your hips slightly, avoid an overly acute pike.")
     if fa["avg_neck_deg"] < 170:
-        feedback.append("Keep your head neutral—gaze slightly forward.")
+        feedback.append("Keep your head neutral, gaze slightly forward.")
 
     if not feedback:
         feedback.append("Excellent pike push-up form! Keep it up.")
@@ -4410,9 +4410,9 @@ def analyze_lunges(video_path, output_video_path=None):
 
     fa = result["form_analysis"]
     if fa["min_knee_angle"] > 90:
-        result["feedback"].append("Lower further—aim for knee <90° at the bottom.")
+        result["feedback"].append("Lower further, aim for knee <90° at the bottom.")
     if fa["avg_torso_upright"] < 80:
-        result["feedback"].append("Keep your torso more vertical—reduce forward lean.")
+        result["feedback"].append("Keep your torso more vertical, reduce forward lean.")
     if not result["feedback"]:
         result["feedback"].append("Great lunge depth and posture!")
 
@@ -4507,9 +4507,9 @@ def analyze_calf_raises(video_path, output_video_path=None):
 
     fa = result["form_analysis"]
     if fa["max_ankle_angle"] < 100:
-        result["feedback"].append("Raise your heels higher—aim for ankle angle >100° at the top.")
+        result["feedback"].append("Raise your heels higher, aim for ankle angle >100° at the top.")
     if fa["avg_knee_stability"] < 80:
-        result["feedback"].append("Keep your knees straight—avoid bending during raises.")
+        result["feedback"].append("Keep your knees straight, avoid bending during raises.")
     if not result["feedback"]:
         result["feedback"].append("Solid calf raise form!")
 
@@ -4592,7 +4592,7 @@ def analyze_glute_bridges(video_path, output_video_path=None):
 
     fa = result["form_analysis"]
     if fa["min_hip_angle"] > 150:
-        result["feedback"].append("Drive your hips higher—aim for hip angle <150° at the top.")
+        result["feedback"].append("Drive your hips higher, aim for hip angle <150° at the top.")
     if not result["feedback"]:
         result["feedback"].append("Excellent hip extension!")
 
