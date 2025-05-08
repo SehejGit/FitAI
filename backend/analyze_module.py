@@ -2613,7 +2613,436 @@ def analyze_mountain_climbers(video_path, output_video_path=None):
     
     return feedback
 
+def analyze_russian_twist(video_path, output_video_path=None):
+    cap = cv2.VideoCapture(video_path)
+    frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps = int(cap.get(cv2.CAP_PROP_FPS))
 
+    if output_video_path:
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        out = cv2.VideoWriter(output_video_path, fourcc, fps, (frame_width, frame_height))
+
+    # Russian twist variables
+    twist_count = 0
+    last_direction = None
+    twist_state = "none"  # Track the twist state: none, left, center, right
+    
+    # Metrics to track
+    torso_angles = []
+    hip_positions = []
+    orientations = []
+    v_positions = []  # V-position (legs raised)
+    
+    print(f"Video dimensions: {frame_width}x{frame_height}, FPS: {fps}")
+
+    def calculate_angle(a, b, c):
+        a = np.array(a)
+        b = np.array(b)
+        c = np.array(c)
+        radians = np.arctan2(c[1] - b[1], c[0] - b[0]) - np.arctan2(a[1] - b[1], a[0] - b[0])
+        angle = np.abs(radians * 180.0 / np.pi)
+        if angle > 180.0:
+            angle = 360 - angle
+        return angle
+
+    while cap.isOpened():
+        success, image = cap.read()
+        if not success:
+            break
+            
+        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        results = pose.process(image_rgb)
+        annotated_image = image.copy()
+
+        if results.pose_landmarks:
+            landmarks = results.pose_landmarks.landmark
+            orientations.append(detect_orientation(landmarks))
+
+            # Get key points
+            left_shoulder = [landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].x,
+                            landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].y]
+            right_shoulder = [landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER.value].x,
+                             landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER.value].y]
+            left_hip = [landmarks[mp_pose.PoseLandmark.LEFT_HIP.value].x,
+                       landmarks[mp_pose.PoseLandmark.LEFT_HIP.value].y]
+            right_hip = [landmarks[mp_pose.PoseLandmark.RIGHT_HIP.value].x,
+                        landmarks[mp_pose.PoseLandmark.RIGHT_HIP.value].y]
+            left_knee = [landmarks[mp_pose.PoseLandmark.LEFT_KNEE.value].x,
+                         landmarks[mp_pose.PoseLandmark.LEFT_KNEE.value].y]
+            right_knee = [landmarks[mp_pose.PoseLandmark.RIGHT_KNEE.value].x,
+                          landmarks[mp_pose.PoseLandmark.RIGHT_KNEE.value].y]
+            left_ankle = [landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value].x,
+                          landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value].y]
+            right_ankle = [landmarks[mp_pose.PoseLandmark.RIGHT_ANKLE.value].x,
+                           landmarks[mp_pose.PoseLandmark.RIGHT_ANKLE.value].y]
+            nose = [landmarks[mp_pose.PoseLandmark.NOSE.value].x,
+                   landmarks[mp_pose.PoseLandmark.NOSE.value].y]
+            
+            # Calculate midpoints
+            mid_shoulder = [(left_shoulder[0] + right_shoulder[0])/2, (left_shoulder[1] + right_shoulder[1])/2]
+            mid_hip = [(left_hip[0] + right_hip[0])/2, (left_hip[1] + right_hip[1])/2]
+            
+            # Calculate metrics for Russian twist
+            # 1. Torso angle (vertical to torso)
+            vertical = [mid_shoulder[0], 0]  # Point directly above mid_shoulder
+            torso_angle = calculate_angle(vertical, mid_shoulder, mid_hip)
+            torso_angles.append(torso_angle)
+            
+            # 2. V-position check (knees raised)
+            knee_height = (left_knee[1] + right_knee[1])/2
+            hip_height = (left_hip[1] + right_hip[1])/2
+            v_position = knee_height < hip_height
+            v_positions.append(v_position)
+            
+            # 3. Rotation detection (for counting twists)
+            shoulder_vector = [right_shoulder[0] - left_shoulder[0], right_shoulder[1] - left_shoulder[1]]
+            shoulder_angle = math.degrees(math.atan2(shoulder_vector[1], shoulder_vector[0]))
+            
+            # Determine twist direction with clear thresholds
+            if abs(shoulder_angle) < 10:  # Smaller threshold for center position
+                current_direction = "center"
+            elif shoulder_angle > 20:  # Threshold for right twist
+                current_direction = "right"
+            elif shoulder_angle < -20:  # Threshold for left twist
+                current_direction = "left"
+            else:
+                current_direction = last_direction  # Maintain previous direction if in transition
+            
+            # State machine for counting complete twists
+            if twist_state == "none":
+                if current_direction == "left":
+                    twist_state = "left"
+                elif current_direction == "right":
+                    twist_state = "right"
+            elif twist_state == "left":
+                if current_direction == "center":
+                    twist_state = "left_center"
+                elif current_direction == "right":
+                    # Missed center, but still count it
+                    twist_count += 1
+                    twist_state = "right"
+            elif twist_state == "left_center":
+                if current_direction == "right":
+                    twist_count += 1
+                    twist_state = "right"
+                elif current_direction == "left":
+                    twist_state = "left"  # Went back to left
+            elif twist_state == "right":
+                if current_direction == "center":
+                    twist_state = "right_center"
+                elif current_direction == "left":
+                    # Missed center, but still count it
+                    twist_count += 1
+                    twist_state = "left"
+            elif twist_state == "right_center":
+                if current_direction == "left":
+                    twist_count += 1
+                    twist_state = "left"
+                elif current_direction == "right":
+                    twist_state = "right"  # Went back to right
+            
+            last_direction = current_direction
+
+            # Draw pose landmarks
+            mp_drawing.draw_landmarks(
+                annotated_image,
+                results.pose_landmarks,
+                mp_pose.POSE_CONNECTIONS,
+                mp_drawing.DrawingSpec(color=(245, 117, 66), thickness=2, circle_radius=2),
+                mp_drawing.DrawingSpec(color=(245, 66, 230), thickness=2, circle_radius=2)
+            )
+
+            # Display metrics
+            cv2.putText(annotated_image, f"Twist Count: {twist_count}", (10, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2, cv2.LINE_AA)
+            cv2.putText(annotated_image, f"Torso Angle: {torso_angle:.1f}°", (10, 60),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2, cv2.LINE_AA)
+            cv2.putText(annotated_image, f"V-Position: {'Yes' if v_position else 'No'}", (10, 90),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2, cv2.LINE_AA)
+            cv2.putText(annotated_image, f"Direction: {current_direction}", (10, 120),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 255), 2, cv2.LINE_AA)
+            cv2.putText(annotated_image, f"State: {twist_state}", (10, 150),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 255), 2, cv2.LINE_AA)
+
+        if output_video_path:
+            out.write(annotated_image)
+
+    cap.release()
+    if output_video_path:
+        out.release()
+    
+    # Calculate averages and prepare feedback
+    if len(torso_angles) < 10:
+        return {
+            "twist_count": 0,
+            "error": "Not enough valid pose detections. Check video quality and positioning."
+        }
+
+    avg_torso_angle = sum(torso_angles) / len(torso_angles)
+    v_position_percent = sum(1 for v in v_positions if v) / len(v_positions) * 100
+    dominant_view = max(set(orientations), key=orientations.count) if orientations else "unknown"
+    
+    min_torso_angle = min(torso_angles)
+    max_torso_angle = max(torso_angles)
+    angle_variation = max_torso_angle - min_torso_angle
+    
+    # Calculate speed metrics (twists per second)
+    video_duration = len(torso_angles) / fps
+    twists_per_second = twist_count / video_duration if video_duration > 0 else 0
+
+    feedback = {
+        "twist_count": twist_count,
+        "form_analysis": {
+            "avg_torso_angle": avg_torso_angle,
+            "min_torso_angle": min_torso_angle,
+            "max_torso_angle": max_torso_angle,
+            "angle_variation": angle_variation,
+            "v_position_percent": v_position_percent,
+            "dominant_view": dominant_view,
+            "twists_per_second": twists_per_second,
+            "video_duration_seconds": video_duration
+        },
+        "feedback": []
+    }
+
+    # 1. Torso angle feedback
+    if avg_torso_angle < 30:
+        feedback["feedback"].append("Lean back more (45-60° from vertical) to properly engage your core.")
+    elif avg_torso_angle > 70:
+        feedback["feedback"].append("Excellent torso angle! You're maintaining good lean for core engagement.")
+    
+    # 2. V-position feedback
+    if v_position_percent < 50:
+        feedback["feedback"].append("Keep your feet elevated throughout the exercise for better core engagement.")
+    elif v_position_percent < 80:
+        feedback["feedback"].append("Good leg elevation, but try to maintain it consistently throughout.")
+    else:
+        feedback["feedback"].append("Excellent leg elevation maintenance!")
+    
+    
+    # 4. Speed feedback
+    if twists_per_second > 0.8:
+        feedback["feedback"].append("Slow down your twists for better control and muscle engagement.")
+    elif twists_per_second < 0.3:
+        feedback["feedback"].append("Consider increasing your pace slightly for better cardio benefits.")
+    else:
+        feedback["feedback"].append("Good pace - controlled movements with proper form.")
+    
+    # 5. Range of motion feedback
+    if angle_variation < 30:
+        feedback["feedback"].append("Increase your rotation range - try to touch the floor on each side.")
+    elif angle_variation > 90:
+        feedback["feedback"].append("Great range of motion in your twists!")
+    
+    # 6. General form feedback
+    if twist_count > 0 and len(feedback["feedback"]) < 3:
+        feedback["feedback"].append("Overall good form! Focus on controlled breathing during each twist.")
+
+    return feedback
+
+    cap = cv2.VideoCapture(video_path)
+    frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps = int(cap.get(cv2.CAP_PROP_FPS))
+
+    if output_video_path:
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        out = cv2.VideoWriter(output_video_path, fourcc, fps, (frame_width, frame_height))
+
+    # Burpee variables
+    burpee_count = 0
+    burpee_state = "standing"  # standing -> squat -> plank -> squat -> jump -> standing
+    state_start_time = 0
+    frame_count = 0
+    
+    # Track metrics for form feedback
+    jump_heights = []
+    plank_durations = []
+    squat_depths = []
+    
+    print(f"Video dimensions: {frame_width}x{frame_height}, FPS: {fps}")
+
+    def calculate_angle(a, b, c):
+        a = np.array(a)
+        b = np.array(b)
+        c = np.array(c)
+        radians = np.arctan2(c[1] - b[1], c[0] - b[0]) - np.arctan2(a[1] - b[1], a[0] - b[0])
+        angle = np.abs(radians * 180.0 / np.pi)
+        if angle > 180.0:
+            angle = 360 - angle
+        return angle
+
+    while cap.isOpened():
+        success, image = cap.read()
+        if not success:
+            break
+            
+        frame_count += 1
+        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        results = pose.process(image_rgb)
+        annotated_image = image.copy()
+
+        if results.pose_landmarks:
+            landmarks = results.pose_landmarks.landmark
+            
+            # Get key points
+            nose = [landmarks[mp_pose.PoseLandmark.NOSE.value].x,
+                   landmarks[mp_pose.PoseLandmark.NOSE.value].y]
+            left_shoulder = [landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].x,
+                            landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].y]
+            right_shoulder = [landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER.value].x,
+                             landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER.value].y]
+            left_elbow = [landmarks[mp_pose.PoseLandmark.LEFT_ELBOW.value].x,
+                         landmarks[mp_pose.PoseLandmark.LEFT_ELBOW.value].y]
+            right_elbow = [landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW.value].x,
+                          landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW.value].y]
+            left_wrist = [landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].x,
+                         landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].y]
+            right_wrist = [landmarks[mp_pose.PoseLandmark.RIGHT_WRIST.value].x,
+                          landmarks[mp_pose.PoseLandmark.RIGHT_WRIST.value].y]
+            left_hip = [landmarks[mp_pose.PoseLandmark.LEFT_HIP.value].x,
+                       landmarks[mp_pose.PoseLandmark.LEFT_HIP.value].y]
+            right_hip = [landmarks[mp_pose.PoseLandmark.RIGHT_HIP.value].x,
+                        landmarks[mp_pose.PoseLandmark.RIGHT_HIP.value].y]
+            left_knee = [landmarks[mp_pose.PoseLandmark.LEFT_KNEE.value].x,
+                         landmarks[mp_pose.PoseLandmark.LEFT_KNEE.value].y]
+            right_knee = [landmarks[mp_pose.PoseLandmark.RIGHT_KNEE.value].x,
+                          landmarks[mp_pose.PoseLandmark.RIGHT_KNEE.value].y]
+            left_ankle = [landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value].x,
+                          landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value].y]
+            right_ankle = [landmarks[mp_pose.PoseLandmark.RIGHT_ANKLE.value].x,
+                           landmarks[mp_pose.PoseLandmark.RIGHT_ANKLE.value].y]
+            
+            # Calculate midpoints
+            mid_shoulder = [(left_shoulder[0] + right_shoulder[0])/2, (left_shoulder[1] + right_shoulder[1])/2]
+            mid_hip = [(left_hip[0] + right_hip[0])/2, (left_hip[1] + right_hip[1])/2]
+            mid_ankle = [(left_ankle[0] + right_ankle[0])/2, (left_ankle[1] + right_ankle[1])/2]
+            
+            # Calculate metrics for positions
+            # 1. Body angle (vertical = standing, horizontal = plank)
+            vertical_angle = calculate_angle([mid_shoulder[0], 0], mid_shoulder, mid_hip)
+            
+            # 2. Knee angle (straight = standing/plank, bent = squat)
+            left_knee_angle = calculate_angle(left_hip, left_knee, left_ankle)
+            right_knee_angle = calculate_angle(right_hip, right_knee, right_ankle)
+            knee_angle = (left_knee_angle + right_knee_angle) / 2
+            
+            # 3. Hip height (for squat depth and jump detection)
+            hip_height = mid_hip[1]
+            ankle_height = mid_ankle[1]
+            
+            # 4. Wrist position relative to shoulders (for plank detection)
+            wrist_shoulder_y_diff = ((left_wrist[1] + right_wrist[1])/2) - ((left_shoulder[1] + right_shoulder[1])/2)
+            
+            # Detect positions
+            is_standing = vertical_angle < 30 and knee_angle > 160 and hip_height < 0.7
+            is_squat = knee_angle < 120 and hip_height > 0.6
+            is_plank = vertical_angle > 60 and knee_angle > 160 and wrist_shoulder_y_diff < 0.15
+            is_jump = hip_height < 0.5 and ankle_height < 0.75  # Both hips and ankles are high (in the air)
+            
+            # Record metrics for feedback
+            if is_squat:
+                squat_depths.append(hip_height)
+            if is_jump:
+                jump_heights.append(1.0 - hip_height)  # Normalize so higher value = higher jump
+            
+            # State machine for burpee detection
+            if burpee_state == "standing":
+                if is_squat:
+                    burpee_state = "squat_down"
+                    state_start_time = frame_count
+            
+            elif burpee_state == "squat_down":
+                if is_plank:
+                    burpee_state = "plank"
+                    state_start_time = frame_count
+                elif is_standing:  # Reset if they stand back up without completing
+                    burpee_state = "standing"
+            
+            elif burpee_state == "plank":
+                plank_duration = frame_count - state_start_time
+                plank_durations.append(plank_duration)
+                
+                if is_squat:
+                    burpee_state = "squat_up"
+                    state_start_time = frame_count
+                elif is_standing:  # Skip squat and go straight to standing
+                    burpee_state = "standing"
+            
+            elif burpee_state == "squat_up":
+                if is_jump:
+                    burpee_state = "jump"
+                    state_start_time = frame_count
+                elif is_standing:  # Skip jump
+                    burpee_state = "standing"
+                    burpee_count += 1  # Still count as a rep, but will note in feedback
+            
+            elif burpee_state == "jump":
+                if is_standing:
+                    burpee_state = "standing"
+                    burpee_count += 1
+                    state_start_time = frame_count
+
+            # Draw pose landmarks
+            mp_drawing.draw_landmarks(
+                annotated_image,
+                results.pose_landmarks,
+                mp_pose.POSE_CONNECTIONS,
+                mp_drawing.DrawingSpec(color=(245, 117, 66), thickness=2, circle_radius=2),
+                mp_drawing.DrawingSpec(color=(245, 66, 230), thickness=2, circle_radius=2)
+            )
+
+            # Display metrics
+            cv2.putText(annotated_image, f"Burpee Count: {burpee_count}", (10, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2, cv2.LINE_AA)
+            cv2.putText(annotated_image, f"State: {burpee_state}", (10, 60),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2, cv2.LINE_AA)
+            cv2.putText(annotated_image, f"Vertical Angle: {vertical_angle:.1f}", (10, 90),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 255), 2, cv2.LINE_AA)
+            cv2.putText(annotated_image, f"Knee Angle: {knee_angle:.1f}", (10, 120),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2, cv2.LINE_AA)
+
+        if output_video_path:
+            out.write(annotated_image)
+
+    cap.release()
+    if output_video_path:
+        out.release()
+
+    # Calculate averages and prepare feedback
+    if frame_count < 10:
+        return {
+            "burpee_count": 0,
+            "error": "Not enough valid frames. Check video quality and positioning."
+        }
+
+    avg_squat_depth = sum(squat_depths) / len(squat_depths) if squat_depths else 0
+    avg_jump_height = sum(jump_heights) / len(jump_heights) if jump_heights else 0
+    avg_plank_duration = sum(plank_durations) / len(plank_durations) if plank_durations else 0
+    avg_plank_duration_seconds = avg_plank_duration / fps if fps > 0 else 0
+
+    feedback = {
+        "burpee_count": burpee_count,
+        "form_analysis": {
+            "avg_squat_depth": avg_squat_depth,
+            "avg_jump_height": avg_jump_height,
+            "avg_plank_duration_seconds": avg_plank_duration_seconds
+        },
+        "feedback": []
+    }
+
+    # Generate feedback
+    if avg_squat_depth < 0.65:
+        feedback["feedback"].append("Deepen your squat for a full range of motion.")
+    if avg_jump_height < 0.2:
+        feedback["feedback"].append("Push through your heels for a more explosive jump.")
+    if avg_plank_duration_seconds < 0.5:
+        feedback["feedback"].append("Ensure a complete plank position in the middle of each burpee.")
+    if burpee_count < 3:
+        feedback["feedback"].append("Focus on completing the full sequence: squat, plank, squat, jump.")
+
+    return feedback
 
 
 
