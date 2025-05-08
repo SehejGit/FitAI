@@ -244,7 +244,7 @@ def analyze_push_ups(video_path, output_video_path=None):
         feedback["feedback"].append("You're not fully extending your arms at the top of the pushup.")
     
     if avg_alignment < 0.8:
-        feedback["feedback"].append("Keep your body straighter throughout the movement. Your hips are sagging or piking.")
+        feedback["feedback"].append("Keep your hips straighter throughout the movement, engage your core.")
     
     if not feedback["feedback"]:
         feedback["feedback"].append("Great form! Your pushups have good depth and body alignment.")
@@ -440,10 +440,10 @@ def analyze_squats(video_path, output_video_path=None):
     
     # Add specific feedback based on measurements
     if avg_knee_angle_bottom > 110:
-        feedback["feedback"].append("You're not squatting deep enough. Try to lower your body until your thighs are parallel to the ground.")
+        feedback["feedback"].append("You're not squatting deep enough, try to lower your body until your thighs are parallel to the ground.")
     
     if avg_knee_angle_bottom < 80:
-        feedback["feedback"].append("You're squatting too deep which could stress your knees. Aim for thighs parallel to the ground.")
+        feedback["feedback"].append("You're squatting too deep , which could stress your knees. Aim for your thighs parallel to the ground.")
     
     if avg_back_alignment < 0.7:
         feedback["feedback"].append("Keep your back straighter throughout the movement. You're leaning forward too much.")
@@ -632,7 +632,7 @@ def analyze_planks(video_path, output_video_path=None):
         feedback["feedback"].append("Work on keeping your body in a straight line from shoulders to ankles.")
     
     if avg_hip_height < 0.8:
-        feedback["feedback"].append("Your hips are either sagging too low or piking too high. Keep them in line with your shoulders and ankles.")
+        feedback["feedback"].append("Keep your hips in line with your shoulders and ankles, engage your cores.")
     
     if plank_duration < 10:
         feedback["feedback"].append(f"Your plank duration was {plank_duration:.1f} seconds. Aim to hold for at least 30 seconds.")
@@ -852,7 +852,7 @@ def analyze_dumbbell_press(video_path, output_video_path=None):
         feedback["feedback"].append("Try to keep your arms more symmetrical throughout the movement.")
     
     if avg_back_arch < 0.8:
-        feedback["feedback"].append("Watch your back position - avoid excessive arching during the press.")
+        feedback["feedback"].append("Watch your back position, avoid excessive arching during the press.")
     
     if not feedback["feedback"]:
         feedback["feedback"].append("Great form! Your dumbbell press shows good range of motion and symmetry.")
@@ -1759,7 +1759,7 @@ def analyze_bicycle_crunch(video_path, output_video_path=None):
         feedback["feedback"].append("Extend your legs more fully when straightening them for better hip flexor engagement.")
     
     if not feedback["feedback"]:
-        feedback["feedback"].append("Excellent bicycle crunch form! You're maintaining good shoulder elevation and proper elbow-to-knee connection.")
+        feedback["feedback"].append("Excellent bicycle crunch form! You're maintaining good shoulder elevation and proper elbow to knee connection.")
         
     return feedback
 
@@ -1956,7 +1956,7 @@ def analyze_band_pull_apart(video_path, output_video_path=None):
         feedback["feedback"].append("Keep your arms at a consistent height throughout the movement.")
     
     if not feedback["feedback"]:
-        feedback["feedback"].append("Great form on your band pull-aparts! You're achieving good range of motion and shoulder retraction.")
+        feedback["feedback"].append("Great form on your band pull aparts! You're achieving good range of motion and shoulder retraction.")
         
     return feedback
 
@@ -2176,7 +2176,7 @@ def analyze_bench_press(video_path, output_video_path=None):
         feedback["feedback"].append("Keep your wrists stacked over your elbows for better leverage and to reduce wrist strain.")
     
     if avg_arm_symmetry < 0.85:
-        feedback["feedback"].append("Focus on pressing the bar evenly with both arms for better balance and strength development.")
+        feedback["feedback"].append("Focus on pressing the bar evenly with both arms for better balance and strength.")
     
     if avg_bar_path < 0.8:
         feedback["feedback"].append("Work on maintaining a more vertical bar path to maximize efficiency.")
@@ -2386,7 +2386,7 @@ def analyze_jumping_jacks(video_path, output_video_path=None):
 
     feedback = []
     if max_arm_spread < 1.8:
-        feedback.append("Raise your arms higher-hands should meet above your head.")
+        feedback.append("Raise your arms higher, hands should meet above your head.")
     if max_leg_spread < 1.8:
         feedback.append("Spread your legs wider at the top of the movement.")
     if min_arm_spread > 1.0:
@@ -2394,9 +2394,9 @@ def analyze_jumping_jacks(video_path, output_video_path=None):
     if min_leg_spread > 1.1:
         feedback.append("Bring your feet together at the bottom of each rep.")
     if avg_neck_deg < 165:
-        feedback.append("Keep your neck neutral-look forward, not down or up.")
+        feedback.append("Keep your neck neutral, look forward, not down or up.")
     if avg_shoulder_dy > 0.05 * (frame_height if not is_vertical else frame_width):
-        feedback.append("Keep shoulders level-avoid shrugging or tilting.")
+        feedback.append("Keep shoulders level, avoid shrugging or tilting.")
     # Orientation-specific feedback
     if dominant_view == "front":
         feedback.append("Front view: check for even arm/leg motion and symmetry.")
@@ -2567,11 +2567,11 @@ def analyze_mountain_climbers(video_path, output_video_path=None):
     
     # Knee feedback (more nuanced)
     if avg_knee > 140:
-        feedback["feedback"].append("Bring knees higher toward chest - aim for 90-120° knee bend")
+        feedback["feedback"].append("Bring knees higher toward chest, aim for 90-120° knee bend")
     elif avg_knee > 120:
-        feedback["feedback"].append("Good knee range - could bring slightly higher for full engagement")
+        feedback["feedback"].append("Good knee range, could bring slightly higher for full engagement")
     elif avg_knee < 70:
-        feedback["feedback"].append("Avoid over-bending knees - maintain controlled motion")
+        feedback["feedback"].append("Avoid overbending knees, maintain controlled motion")
     else:
         feedback["feedback"].append("Excellent knee movement - good range of motion")
         
