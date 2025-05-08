@@ -4594,3 +4594,189 @@ def analyze_glute_bridges(video_path, output_video_path=None):
         result["feedback"].append("Excellent hip extension!")
 
     return result
+
+def analyze_shadow_boxing(video_path, output_video_path=None):
+    """
+    Analyzes shadow boxing form from a video using MediaPipe pose detection.
+    
+    Args:
+        video_path (str): Path to the input video file
+        output_video_path (str, optional): Path where the analyzed video will be saved
+        
+    Returns:
+        dict: Analysis results including punch count, form metrics, and feedback
+    """
+    cap = cv2.VideoCapture(video_path)
+    w, h = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    writer = None
+    if output_video_path:
+        writer = setup_video_writer(output_video_path, fps, w, h)
+
+    # Variables to track shadow boxing state
+    punch_count = 0
+    punch_stage = None  # "retracted" or "extended"
+    good_frames = 0
+    frames_without_detection = 0
+
+    # Lists to store metrics for analysis
+    stance_scores = []        # For proper boxing stance
+    punch_extension = []      # For full punch extension
+    guard_position = []       # For keeping hands up
+    foot_movement = []        # For proper footwork
+    hip_rotation = []         # For power generation
+
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        res = pose_tracker.process(img_rgb)
+        out = frame.copy()
+
+        if res.pose_landmarks:
+            good_frames += 1
+            lm = res.pose_landmarks.landmark
+
+            def nc(idx):
+                return [lm[idx].x, lm[idx].y]
+
+            # Get key points for shadow boxing analysis
+            left_shoulder = nc(mp_pose.PoseLandmark.LEFT_SHOULDER.value)
+            right_shoulder = nc(mp_pose.PoseLandmark.RIGHT_SHOULDER.value)
+            left_elbow = nc(mp_pose.PoseLandmark.LEFT_ELBOW.value)
+            right_elbow = nc(mp_pose.PoseLandmark.RIGHT_ELBOW.value)
+            left_wrist = nc(mp_pose.PoseLandmark.LEFT_WRIST.value)
+            right_wrist = nc(mp_pose.PoseLandmark.RIGHT_WRIST.value)
+            left_hip = nc(mp_pose.PoseLandmark.LEFT_HIP.value)
+            right_hip = nc(mp_pose.PoseLandmark.RIGHT_HIP.value)
+            left_knee = nc(mp_pose.PoseLandmark.LEFT_KNEE.value)
+            right_knee = nc(mp_pose.PoseLandmark.RIGHT_KNEE.value)
+            left_ankle = nc(mp_pose.PoseLandmark.LEFT_ANKLE.value)
+            right_ankle = nc(mp_pose.PoseLandmark.RIGHT_ANKLE.value)
+
+            # 1. Check boxing stance
+            # Proper stance: feet shoulder-width apart, knees slightly bent
+            stance_width = abs(left_ankle[0] - right_ankle[0])
+            knee_angles = [
+                calculate_angle(left_hip, left_knee, left_ankle),
+                calculate_angle(right_hip, right_knee, right_ankle)
+            ]
+            avg_knee_angle = sum(knee_angles) / 2
+            stance_score = max(0, min(1, (stance_width - 0.2) / 0.2)) * max(0, min(1, (avg_knee_angle - 120) / 60))
+            stance_scores.append(stance_score)
+
+            # 2. Check punch extension
+            # Full extension: elbow angle > 150 degrees
+            left_elbow_angle = calculate_angle(left_shoulder, left_elbow, left_wrist)
+            right_elbow_angle = calculate_angle(right_shoulder, right_elbow, right_wrist)
+            max_elbow_angle = max(left_elbow_angle, right_elbow_angle)
+            extension_score = max(0, min(1, (max_elbow_angle - 120) / 30))
+            punch_extension.append(extension_score)
+
+            # 3. Check guard position
+            # Hands should be up near face level
+            avg_hand_height = (left_wrist[1] + right_wrist[1]) / 2
+            guard_score = max(0, min(1, (0.4 - avg_hand_height) / 0.2))
+            guard_position.append(guard_score)
+
+            # 4. Check foot movement
+            # Track ankle positions for movement
+            if good_frames > 1:
+                prev_left_ankle = left_ankle
+                prev_right_ankle = right_ankle
+                movement = abs(left_ankle[0] - prev_left_ankle[0]) + abs(right_ankle[0] - prev_right_ankle[0])
+                foot_movement.append(min(1, movement * 10))
+
+            # 5. Check hip rotation
+            # Hips should rotate with punches
+            hip_angle = calculate_angle(left_hip, right_hip, [0, 0])
+            hip_rotation.append(max(0, min(1, abs(hip_angle - 90) / 45)))
+
+            # Draw pose and metrics
+            mp_drawing.draw_landmarks(
+                out,
+                res.pose_landmarks,
+                mp_pose.POSE_CONNECTIONS,
+                mp_drawing.DrawingSpec(color=(245, 117, 66), thickness=2, circle_radius=2),
+                mp_drawing.DrawingSpec(color=(245, 66, 230), thickness=2, circle_radius=2)
+            )
+
+            # Display metrics
+            cv2.putText(out, f"Stance: {stance_score*100:.1f}%", (10, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2, cv2.LINE_AA)
+            cv2.putText(out, f"Extension: {extension_score*100:.1f}%", (10, 60),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2, cv2.LINE_AA)
+            cv2.putText(out, f"Guard: {guard_score*100:.1f}%", (10, 90),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2, cv2.LINE_AA)
+
+            # Detect punches based on elbow angles
+            if max_elbow_angle > 150 and punch_stage == "retracted":
+                punch_stage = "extended"
+            elif max_elbow_angle < 90 and (punch_stage == "extended" or punch_stage is None):
+                punch_stage = "retracted"
+                punch_count += 1
+                print(f"Punch #{punch_count} detected")
+
+            # Display punch count
+            cv2.putText(out, f'Punches: {punch_count}', (10, 120),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
+
+            if writer:
+                writer.write(out)
+        else:
+            frames_without_detection += 1
+            if frames_without_detection % 30 == 0:
+                print(f"No pose detection for {frames_without_detection} frames")
+
+    cap.release()
+    if writer:
+        writer.release()
+
+    if good_frames < 10:
+        return {
+            "punch_count": 0,
+            "error": "Not enough valid pose detections. Check video quality and positioning."
+        }
+
+    # Calculate average metrics
+    avg_stance = sum(stance_scores) / len(stance_scores)
+    avg_extension = sum(punch_extension) / len(punch_extension)
+    avg_guard = sum(guard_position) / len(guard_position)
+    avg_footwork = sum(foot_movement) / len(foot_movement) if foot_movement else 0
+    avg_hip_rotation = sum(hip_rotation) / len(hip_rotation)
+
+    # Generate feedback
+    feedback = {
+        "punch_count": punch_count,
+        "form_analysis": {
+            "stance_score": avg_stance * 100,
+            "extension_score": avg_extension * 100,
+            "guard_score": avg_guard * 100,
+            "footwork_score": avg_footwork * 100,
+            "hip_rotation_score": avg_hip_rotation * 100
+        },
+        "feedback": []
+    }
+
+    # Add specific feedback based on measurements
+    if avg_stance < 0.7:
+        feedback["feedback"].append("Work on your boxing stance - keep feet shoulder-width apart with knees slightly bent.")
+    
+    if avg_extension < 0.7:
+        feedback["feedback"].append("Extend your punches fully for maximum power and range.")
+    
+    if avg_guard < 0.7:
+        feedback["feedback"].append("Keep your hands up in guard position to protect your face.")
+    
+    if avg_footwork < 0.3:
+        feedback["feedback"].append("Add more movement to your footwork - stay light on your feet.")
+    
+    if avg_hip_rotation < 0.5:
+        feedback["feedback"].append("Rotate your hips with your punches for more power.")
+    
+    if not feedback["feedback"]:
+        feedback["feedback"].append("Excellent shadow boxing form! Your stance, guard, and movement are all very good.")
+
+    return feedback
