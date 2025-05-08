@@ -233,10 +233,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = () => {
     if (!uploadedVideo || !videoFileRef.current) return;
     
     // Don't allow analysis if the exercise isn't supported
-    if (!isExerciseSupported) {
-      setAnalysisError(`Exercise "${decodedExercise}" is not supported for analysis. Available exercises: ${availableExercises.join(', ')}`);
-      return;
-    }
+    // if (!isExerciseSupported) {
+    //   setAnalysisError(`Exercise "${decodedExercise}" is not supported for analysis. Available exercises: ${availableExercises.join(', ')}`);
+    //   return;
+    // }
     
     setIsAnalyzing(true);
     setAnalysisError(null);

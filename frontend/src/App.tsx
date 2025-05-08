@@ -256,7 +256,7 @@ const App: React.FC = () => {
                 <UserInfoForm onGenerateWorkout={handleGenerateWorkout} />
                 
                 {/* Add AI workout generation option if user has filled the form */}
-                {userInfo && (
+                {/* {userInfo && (
                   <Box sx={{ mt: 3 }}>
                     <Typography variant="h6" gutterBottom sx={{ textAlign: 'center' }}>
                       Or generate an AI-enhanced workout plan
@@ -266,7 +266,7 @@ const App: React.FC = () => {
                       onGenerateWorkout={handleAiGenerateWorkout} 
                     />
                   </Box>
-                )}
+                )} */}
               </Box>
             ) : (
               <WorkoutPlan 

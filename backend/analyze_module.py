@@ -4383,8 +4383,8 @@ def analyze_lunges(video_path, output_video_path=None):
             break
 
         img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        res     = pose_tracker.process(img_rgb)
-        out     = frame.copy()
+        res     = pose.process(img_rgb)
+        annotated_image = frame.copy()
 
         if res.pose_landmarks:
             good_frames += 1
@@ -4407,12 +4407,12 @@ def analyze_lunges(video_path, output_video_path=None):
             score     = max(0, min(1, (torso_ang - 150) / 30))
             torso_scores.append(score)
 
-            mp_drawing.draw_landmarks(out, res.pose_landmarks, mp_pose.POSE_CONNECTIONS)
+            mp_drawing.draw_landmarks(annotated_image, res.pose_landmarks, mp_pose.POSE_CONNECTIONS)
 
             kx, ky = normalized_to_pixel_coordinates(knee[0], knee[1], w, h)
-            cv2.putText(out, f"Knee: {knee_ang:.1f}°", (kx-40, ky+30),
+            cv2.putText(annotated_image, f"Knee: {knee_ang:.1f}°", (kx-40, ky+30),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,255), 2)
-            cv2.putText(out, f"Torso: {score*100:.0f}%", (10, 30),
+            cv2.putText(annotated_image, f"Torso: {score*100:.0f}%", (10, 30),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,0), 2)
 
             # rep detection
@@ -4423,10 +4423,10 @@ def analyze_lunges(video_path, output_video_path=None):
                 rep_count += 1
                 print(f"Lunge #{rep_count} @ knee {knee_ang:.1f}°")
 
-        cv2.putText(out, f"Lunges: {rep_count}", (10, h-30),
+        cv2.putText(annotated_image, f"Lunges: {rep_count}", (10, h-30),
                     cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0,0,255), 3)
         if writer:
-            writer.write(out)
+            writer.write(annotated_image)
 
     cap.release()
     if writer:
