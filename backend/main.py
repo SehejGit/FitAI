@@ -13,6 +13,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import uvicorn
+from openai import OpenAI
+from secrets_manager import SecretManager
 
 # Import workout generation functions from your existing MVP
 from mvp import determine_exercises, create_workout_schedule, generate_pdf
@@ -22,11 +24,22 @@ import analyze_module
 
 app = FastAPI(title="Fitness Buddy API")
 
+try:
+    openai_api_key = SecretManager.get_openai_key()
+    client = OpenAI(api_key=openai_api_key)
+except Exception as e:
+    # Fallback to environment variable for local development
+    openai_api_key = os.getenv("OPENAI_API_KEY")
+    if not openai_api_key:
+        raise RuntimeError("OpenAI API key not found in Secret Manager or environment variables")
+    client = OpenAI(api_key=openai_api_key)
+
 # Get all analysis functions automatically
 analysis_functions = {}
 for name, func in inspect.getmembers(analyze_module, inspect.isfunction):
     if name.startswith("analyze_"):
-        exercise_name = name[8:]
+        exercise_name = name[8:].lower()
+        exercise_name.replace(" ", "_").replace("-", "_")
         analysis_functions[exercise_name] = func
 
 # Create a directory for storing videos if it doesn't exist
@@ -102,6 +115,143 @@ class WorkoutLog(BaseModel):
 SAVED_WORKOUTS = []
 WORKOUT_LOGS = {}
 
+# Create a new endpoint for AI-enhanced workout generation
+@app.post("/api/generate-ai-workout")
+async def generate_ai_workout(user_info: UserInfo):
+    """Generate an AI-enhanced workout plan"""
+    try:
+        # First get the workout insights from OpenAI
+        workout_insights = await get_workout_insights(user_info)
+        
+        # Then use these insights to modify the workout generation
+        selected_exercises = determine_exercises_with_ai(
+            user_info.equipment,
+            user_info.fitnessGoal,
+            user_info.fitnessLevel,
+            user_info.injuries or "",
+            workout_insights
+        )
+        
+        workout_plan = create_workout_schedule_with_ai(
+            selected_exercises,
+            user_info.daysPerWeek,
+            user_info.timePerSession,
+            user_info.fitnessLevel,
+            workout_insights
+        )
+        
+        return {
+            "success": True,
+            "workout_plan": workout_plan,
+            "ai_insights": workout_insights
+        }
+    
+    except Exception as e:
+        print(f"Error generating AI workout plan: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+async def get_workout_insights(user_info: UserInfo) -> dict:
+    """Get workout insights from OpenAI based on user information"""
+    
+    # Create the prompt
+    prompt = f"""
+    As a fitness expert, analyze this user profile and provide workout recommendations:
+    
+    User Profile:
+    - Age: {user_info.age}
+    - Gender: {user_info.gender}
+    - Current Weight: {user_info.currentWeight} lbs
+    - Goal Weight: {user_info.goalWeight} lbs
+    - Height: {user_info.height} inches
+    - Fitness Goal: {user_info.fitnessGoal}
+    - Fitness Level: {user_info.fitnessLevel}
+    - Days per Week: {user_info.daysPerWeek}
+    - Time per Session: {user_info.timePerSession} minutes
+    - Available Equipment: {', '.join(user_info.equipment)}
+    {"- Injuries/Limitations: " + user_info.injuries if user_info.injuries else ""}
+    {"- Preferences: " + user_info.preferences if user_info.preferences else ""}
+    
+    Please provide:
+    1. Specific exercise recommendations based on their goals and equipment
+    2. Suggested rep ranges and sets based on their fitness level
+    3. Any modifications needed for injuries or limitations
+    4. Recovery and rest day recommendations
+    5. Progression suggestions for their fitness level
+    
+    Format your response as a JSON object with these keys:
+    - exercise_recommendations: array of specific exercises
+    - rep_schemes: object with suggested sets/reps
+    - modifications: array of modification suggestions
+    - recovery_tips: array of recovery recommendations
+    - progression_tips: array of progression suggestions
+    """
+    
+    try:
+        response = await client.chat.completions.create(
+            model="gpt-3.5-turbo",  # or "gpt-4" for more advanced analysis
+            messages=[
+                {"role": "system", "content": "You are an expert fitness trainer who provides personalized workout recommendations."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=1000,
+            response_format={"type": "json_object"}
+        )
+        
+        insights = json.loads(response.choices[0].message.content)
+        return insights
+    
+    except Exception as e:
+        print(f"Error getting OpenAI insights: {str(e)}")
+        return {
+            "exercise_recommendations": [],
+            "rep_schemes": {},
+            "modifications": [],
+            "recovery_tips": [],
+            "progression_tips": []
+        }
+
+def determine_exercises_with_ai(equipment, fitness_goal, fitness_level, injuries, ai_insights):
+    """Enhanced exercise selection using AI insights"""
+    # Start with the existing logic
+    selected_exercises = determine_exercises(equipment, fitness_goal, fitness_level, injuries)
+    
+    # Incorporate AI recommendations
+    if ai_insights.get("exercise_recommendations"):
+        for area in selected_exercises:
+            # Add AI-recommended exercises that are available in our exercise library
+            for rec_exercise in ai_insights["exercise_recommendations"]:
+                if any(rec_exercise.lower() in existing.lower() for existing in selected_exercises[area]):
+                    continue  # Already included
+                
+                # Check if this exercise exists in our library
+                for lib_area, exercises in EXERCISE_LIBRARY.items():
+                    for lib_exercises in exercises.values():
+                        if rec_exercise in lib_exercises:
+                            selected_exercises[area].append(rec_exercise)
+                            break
+    
+    return selected_exercises
+
+def create_workout_schedule_with_ai(exercises, days_per_week, time_per_session, fitness_level, ai_insights):
+    """Enhanced workout schedule creation using AI insights"""
+    # Use existing logic as base
+    workout_plan = create_workout_schedule(exercises, days_per_week, time_per_session, fitness_level)
+    
+    # Apply AI-suggested rep schemes
+    if ai_insights.get("rep_schemes"):
+        for day in workout_plan:
+            for exercise in day["exercises"]:
+                # Apply AI-suggested rep schemes if available
+                exercise_name = exercise["name"].lower()
+                for movement_type, scheme in ai_insights["rep_schemes"].items():
+                    if movement_type.lower() in exercise_name:
+                        exercise["sets"] = scheme.get("sets", exercise["sets"])
+                        exercise["reps"] = scheme.get("reps", exercise["reps"])
+                        exercise["rest"] = scheme.get("rest", exercise["rest"])
+    
+    return workout_plan
+
 # Video analysis endpoints
 @app.post("/analyze/{exercise_type}/")
 async def analyze_exercise_endpoint(
@@ -110,17 +260,21 @@ async def analyze_exercise_endpoint(
     return_video: bool = Query(False, description="Also return the annotated video")
 ):
     # Check if the requested exercise type exists
-    if exercise_type not in analysis_functions:
+    exercise_normalized = exercise_type.replace(" ", "_").lower()
+    exercise_normalized = exercise_normalized.replace("-", "_")
+    print(exercise_normalized)
+    if exercise_normalized not in analysis_functions:
         raise HTTPException(
-            status_code=404, 
-            detail=f"Exercise type '{exercise_type}' not found. Available types: {list(analysis_functions.keys())}"
+            status_code=404,
+            detail=f"Exercise type '{exercise_normalized}' not found. Available types: {list(analysis_functions.keys())}"
         )
     
     # Get the appropriate analysis function
-    analysis_function = analysis_functions[exercise_type]
+    analysis_function = analysis_functions[exercise_normalized]
     
     # 1) Save the upload to disk with proper filename handling
     safe_filename = file.filename.replace(" ", "_").lower()
+    safe_filename = file.filename.replace("-", "_")
     input_path = os.path.join(VIDEOS_DIR, safe_filename)
     
     with open(input_path, "wb") as buffer:

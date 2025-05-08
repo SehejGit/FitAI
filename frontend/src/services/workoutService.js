@@ -3,7 +3,7 @@
 /**
  * Service to handle API calls to the Python backend
  */
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_URL = process.env.REACT_APP_API_URL || 'https://api.allorigins.win/raw?url=https://34-8-10-114.nip.io';
 
 /**
  * Generate a workout plan by calling the Python backend

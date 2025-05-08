@@ -34,21 +34,14 @@ import { analyzeExerciseForm, formatExerciseNameForApi, fetchAvailableExercises,
 import { checkVideoUrlAccess } from '../utils/corsCheck';
 import { API_BASE_URL } from '../config';
 
-// Function to get example video URL for an exercise
 const getExerciseVideoUrl = (exerciseName: string): string => {
-  // In a real app, this would map to actual exercise videos
-  // For now, we'll use placeholder videos
-  const placeholderVideos: {[key: string]: string} = {
-    "default": "https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4",
-    "Push-ups": "https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4",
-    "Pike push-ups": "https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4",
-    "Squats": "https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4",
-    "Planks": "https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4",
-    "Burpees": "https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4",
-    "Bench press": "https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4"
-  };
-  
-  return placeholderVideos[exerciseName] || placeholderVideos.default;
+  // normalize “Mountain climbers” → “mountain_climbers”, “push-ups” → “push_ups”
+  const formatted = exerciseName
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+  // match your bucket’s uppercase extension
+  const ext = '.MOV';
+  return `https://storage.googleapis.com/fitai-videos/${formatted}${ext}`;
 };
 
 interface VideoPlayerProps {
@@ -80,7 +73,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = () => {
   const decodedExercise = exercise ? decodeURIComponent(exercise) : '';
   const formattedExercise = formatExerciseNameForApi(decodedExercise);
   const videoUrl = getExerciseVideoUrl(decodedExercise);
-  
+  console.log("REACT URL", process.env.REACT_APP_API_URL)
   // Fetch available exercises from API on component mount and check if current exercise is supported
   useEffect(() => {
     const fetchExercises = async () => {
@@ -484,7 +477,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = () => {
               <CardMedia
                 component="video"
                 controls
-                src={require('./fdbb092b58863e5c86fdb8bb1411fcea.mov')}
+                src={getExerciseVideoUrl(decodedExercise)}
                 sx={{ width: '100%', height: '300px' }}
               />
               <CardContent>

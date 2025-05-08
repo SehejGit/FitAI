@@ -1,0 +1,7 @@
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: fitai-certificate
+spec:
+  domains:
+    - 34-8-10-114.nip.io
