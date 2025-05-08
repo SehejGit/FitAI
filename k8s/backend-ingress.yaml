@@ -1,4 +1,3 @@
-# backend-ingress.yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -7,6 +6,10 @@ metadata:
     kubernetes.io/ingress.class: "gce"
     kubernetes.io/ingress.global-static-ip-name: "fitai-static-ip"
     networking.gke.io/managed-certificates: "fitai-certificate"
+    # Increase timeout to 10 minutes (600 seconds)
+    kubernetes.io/ingress.timeout-sec: "600"  # Updated from the default or previous value
+    # Add annotation for larger request/response sizes
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
 spec:
   rules:
   - host: 34-8-10-114.nip.io

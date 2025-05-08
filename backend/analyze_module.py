@@ -252,6 +252,366 @@ def analyze_push_ups(video_path, output_video_path=None):
         
     return feedback
 
+# def analyze_push_ups(video_path, output_video_path=None):
+#     """Wrapper around the original function with error handling"""
+#     try:
+#         # Attempt to print system information
+#         import platform
+#         import sys
+#         print(f"Python version: {sys.version}")
+#         print(f"Platform: {platform.platform()}")
+        
+#         # Try importing libraries with version info
+#         try:
+#             import cv2
+#             print(f"OpenCV version: {cv2.__version__}")
+#         except Exception as e:
+#             print(f"OpenCV import error: {e}")
+        
+#         try:
+#             import mediapipe as mp
+#             print(f"MediaPipe version: {mp.__version__}")
+#         except Exception as e:
+#             print(f"MediaPipe import error: {e}")
+        
+#         try:
+#             import numpy as np
+#             print(f"NumPy version: {np.__version__}")
+#         except Exception as e:
+#             print(f"NumPy import error: {e}")
+        
+#         # Check if the video file exists
+#         import os
+#         if not os.path.exists(video_path):
+#             raise FileNotFoundError(f"Video file not found: {video_path}")
+        
+#         print(f"Video file exists: {video_path}, Size: {os.path.getsize(video_path)}")
+        
+#         # Try opening the video with OpenCV
+#         try:
+#             cap = cv2.VideoCapture(video_path)
+#             if not cap.isOpened():
+#                 raise Exception("Failed to open video with OpenCV")
+            
+#             frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+#             frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+#             fps = int(cap.get(cv2.CAP_PROP_FPS))
+#             frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            
+#             print(f"Video opened successfully: {frame_width}x{frame_height}, {fps} FPS, {frame_count} frames")
+            
+#             # Read first frame to verify
+#             ret, first_frame = cap.read()
+#             if not ret:
+#                 raise Exception("Failed to read first frame")
+                
+#             print(f"First frame read successfully: {first_frame.shape}")
+#             cap.release()
+#         except Exception as e:
+#             print(f"Error opening video: {e}")
+#             raise
+        
+#         # Try initializing MediaPipe
+#         try:
+#             mp_pose = mp.solutions.pose
+#             pose = mp_pose.Pose(static_image_mode=False, min_detection_confidence=0.5)
+#             print("MediaPipe Pose initialized successfully")
+#         except Exception as e:
+#             print(f"Error initializing MediaPipe: {e}")
+#             raise
+            
+#         # Now that we've validated the basics, try to run the actual analysis
+#         # Call the original implementation but with a try-except block
+#         try:
+#             # Here you'd call the original analysis logic, but for now let's just return a mock result
+#             # to test if we can get past the basic validation steps above
+#             return {
+#                 "pushup_count": 5,
+#                 "form_analysis": {
+#                     "elbow_angle_at_bottom": 90.5,
+#                     "elbow_angle_at_top": 165.3,
+#                     "body_alignment_score": 85.2,
+#                     "frames_analyzed": 120
+#                 },
+#                 "feedback": [
+#                     "Great form! Your pushups have good depth and body alignment."
+#                 ]
+#             }
+#         except Exception as e:
+#             print(f"Error in analysis logic: {e}")
+#             import traceback
+#             traceback.print_exc()
+#             raise
+            
+#     except Exception as e:
+#         # Catch any other exceptions
+#         print(f"Fatal error in analyze_push_ups: {e}")
+#         import traceback
+#         traceback.print_exc()
+        
+#         # Return a fallback result instead of crashing
+#         return {
+#             "error": str(e),
+#             "pushup_count": 0,
+#             "form_analysis": {
+#                 "elbow_angle_at_bottom": 0,
+#                 "elbow_angle_at_top": 0,
+#                 "body_alignment_score": 0,
+#                 "frames_analyzed": 0
+#             },
+#             "feedback": [
+#                 f"Analysis error: {str(e)}. Please try a different video."
+#             ]
+#         }
+    
+# def analyze_push_ups(video_path, output_video_path=None):
+#     """A simplified but real analysis of push-up videos using OpenCV"""
+#     import cv2
+#     import numpy as np
+#     import os
+    
+#     # Results container
+#     results = {
+#         "pushup_count": 0,
+#         "form_analysis": {
+#             "elbow_angle_at_bottom": 0,
+#             "elbow_angle_at_top": 0,
+#             "body_alignment_score": 0,
+#             "frames_analyzed": 0
+#         },
+#         "feedback": []
+#     }
+    
+#     try:
+#         # Open the video
+#         cap = cv2.VideoCapture(video_path)
+#         if not cap.isOpened():
+#             raise Exception("Failed to open video file")
+        
+#         # Get video properties
+#         frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+#         frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+#         fps = int(cap.get(cv2.CAP_PROP_FPS))
+#         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        
+#         # Set up output video if requested
+#         if output_video_path:
+#             fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+#             out = cv2.VideoWriter(output_video_path, fourcc, fps, (frame_width, frame_height))
+        
+#         # Track motion over time to detect push-up patterns
+#         previous_frame = None
+#         motion_values = []
+#         processed_frames = 0
+#         frame_indices = []
+        
+#         # Process video frames
+#         while cap.isOpened():
+#             ret, frame = cap.read()
+#             if not ret:
+#                 break
+                
+#             # Convert to grayscale for analysis
+#             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+#             gray = cv2.GaussianBlur(gray, (21, 21), 0)
+            
+#             # Count processed frames
+#             processed_frames += 1
+#             frame_indices.append(processed_frames)
+            
+#             # Calculate motion if we have a previous frame
+#             if previous_frame is not None:
+#                 # Simple frame difference to detect motion
+#                 frame_diff = cv2.absdiff(previous_frame, gray)
+#                 motion = np.sum(frame_diff) / (frame_width * frame_height * 255)
+#                 motion_values.append(motion)
+                
+#                 # Annotate the frame with motion value
+#                 text = f"Motion: {motion:.4f}"
+#                 cv2.putText(frame, text, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 
+#                             1, (0, 255, 0), 2)
+            
+#             # Save current frame for next iteration
+#             previous_frame = gray
+            
+#             # Write the annotated frame to output video
+#             if output_video_path:
+#                 out.write(frame)
+                
+#             # Limit to 300 frames for processing speed (10 seconds at 30fps)
+#             if processed_frames >= 300:
+#                 break
+        
+#         # Clean up
+#         cap.release()
+#         if output_video_path and 'out' in locals():
+#             out.release()
+        
+#         # Actual analysis: Look for peaks and valleys in motion values
+#         # to estimate push-up count
+#         if len(motion_values) > 20:  # Need enough frames for analysis
+#             # Normalize motion values
+#             motion_array = np.array(motion_values)
+#             motion_array = (motion_array - np.min(motion_array)) / (np.max(motion_array) - np.min(motion_array))
+            
+#             # Simple peak detection for push-up count
+#             from scipy.signal import find_peaks
+#             peaks, _ = find_peaks(motion_array, height=0.6, distance=fps)  # Adjust parameters as needed
+            
+#             # Estimate push-up count from peaks
+#             pushup_count = len(peaks)
+            
+#             # Fill in results
+#             results["pushup_count"] = pushup_count
+#             results["form_analysis"]["frames_analyzed"] = processed_frames
+            
+#             # Mock angles based on motion values
+#             if len(peaks) > 0:
+#                 peak_values = motion_array[peaks]
+#                 results["form_analysis"]["elbow_angle_at_bottom"] = 90 + np.min(peak_values) * 10
+#                 results["form_analysis"]["elbow_angle_at_top"] = 160 + np.max(peak_values) * 10
+#                 results["form_analysis"]["body_alignment_score"] = 85  # Mock value
+            
+#             # Generate feedback based on push-up count
+#             if pushup_count == 0:
+#                 results["feedback"].append("No push-ups detected. Try recording with better lighting and ensure your full body is visible.")
+#             elif pushup_count < 3:
+#                 results["feedback"].append(f"Detected {pushup_count} push-ups. Good form but try to complete more repetitions for a better workout.")
+#             else:
+#                 results["feedback"].append(f"Great job! Completed {pushup_count} push-ups with good form.")
+#         else:
+#             results["feedback"].append("Not enough frames for analysis. Please provide a longer video.")
+        
+#         return results
+        
+#     except Exception as e:
+#         import traceback
+#         traceback.print_exc()
+        
+#         # Add error information to results
+#         results["error"] = str(e)
+#         results["feedback"].append(f"Error analyzing video: {str(e)}. Please try a different format.")
+        
+#         return results
+
+
+
+def analyze_push_ups_simple_cv(video_path, output_video_path=None):
+    """
+    A simplified version of push-up analysis that uses basic OpenCV operations
+    """
+    import cv2
+    import numpy as np
+    import os
+    
+    # Make sure the video exists
+    if not os.path.exists(video_path):
+        return {"error": f"Video file not found: {video_path}"}
+    
+    try:
+        # Open the video
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            return {"error": "Failed to open video file"}
+        
+        # Get basic video properties
+        frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        fps = int(cap.get(cv2.CAP_PROP_FPS))
+        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        
+        # Set up output video if requested
+        if output_video_path:
+            fourcc = cv2.VideoWriter_fourcc(*'avc1')  # H.264 codec
+            out = cv2.VideoWriter(output_video_path, fourcc, fps, (frame_width, frame_height))
+        
+        # Process video frames
+        frame_index = 0
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+                
+            # Very simple processing - just draw frame number
+            cv2.putText(frame, f"Frame: {frame_index}", (50, 50), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            
+            # Write to output video if requested
+            if output_video_path:
+                out.write(frame)
+                
+            frame_index += 1
+            
+            # Limit to 100 frames for testing
+            if frame_index >= 100:
+                break
+        
+        # Clean up
+        cap.release()
+        if output_video_path:
+            out.release()
+        
+        # Return mock analysis results
+        return {
+            "video_info": {
+                "width": frame_width,
+                "height": frame_height,
+                "fps": fps,
+                "total_frames": frame_count,
+                "processed_frames": frame_index
+            },
+            "pushup_count": 5,  # Mock data
+            "form_analysis": {
+                "elbow_angle_at_bottom": 90.5,
+                "elbow_angle_at_top": 165.3,
+                "body_alignment_score": 85.2,
+                "frames_analyzed": frame_index
+            },
+            "feedback": [
+                "Great form! Your pushups have good depth and body alignment."
+            ]
+        }
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {
+            "error": str(e),
+            "pushup_count": 0,
+            "form_analysis": {
+                "elbow_angle_at_bottom": 0,
+                "elbow_angle_at_top": 0,
+                "body_alignment_score": 0
+            },
+            "feedback": [
+                f"Error analyzing video: {str(e)}"
+            ]
+        }
+
+def analyze_push_ups_simple(video_path, output_video_path=None):
+    """
+    Simplified version of pushup analysis that doesn't use MediaPipe/OpenCV.
+    Just returns a mock result for testing.
+    """
+    print(f"Simple push-ups analysis requested for: {video_path}")
+    print(f"Output would be saved to: {output_video_path if output_video_path else 'None'}")
+    
+    # Mock result - avoid any complex processing
+    mock_result = {
+        "pushup_count": 5,
+        "form_analysis": {
+            "elbow_angle_at_bottom": 90.5,
+            "elbow_angle_at_top": 165.3,
+            "body_alignment_score": 85.2,
+            "frames_analyzed": 120
+        },
+        "feedback": [
+            "Great form! Your pushups have good depth and body alignment."
+        ]
+    }
+    
+    return mock_result
+
 def analyze_squats(video_path, output_video_path=None):
     """
     Analyzes squat form from a video using MediaPipe pose detection.

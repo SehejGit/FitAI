@@ -27,7 +27,7 @@ analysis_functions = {}
 for name, func in inspect.getmembers(analyze_module, inspect.isfunction):
     if name.startswith("analyze_"):
         exercise_name = name[8:].lower()
-        exercise_name = exercise_name.replace(" ", "_").replace("-", "_")  # FIX: Assign the result back
+        exercise_name = exercise_name.replace(" ", "_").replace("-", "_")  # Fixed: assign result back
         analysis_functions[exercise_name] = func
 
 # Create a directory for storing videos if it doesn't exist
@@ -111,63 +111,117 @@ async def analyze_exercise_endpoint(
     file: UploadFile = File(..., description="MP4 video of the exercise"),
     return_video: bool = Query(False, description="Also return the annotated video")
 ):
-    # Check if the requested exercise type exists
-    exercise_normalized = exercise_type.replace(" ", "_").lower()
-    exercise_normalized = exercise_normalized.replace("-", "_")
-    print(exercise_normalized)
-    if exercise_normalized not in analysis_functions:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Exercise type '{exercise_normalized}' not found. Available types: {list(analysis_functions.keys())}"
-        )
-    
-    # Get the appropriate analysis function
-    analysis_function = analysis_functions[exercise_normalized]
-    
-    # 1) Save the upload to disk with proper filename handling
-    safe_filename = file.filename.replace(" ", "_").lower()
-    safe_filename = file.filename.replace("-", "_")
-    input_path = os.path.join(VIDEOS_DIR, safe_filename)
-    
-    with open(input_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
 
-    # 2) Build output path - store directly in VIDEOS_DIR
-    if return_video:
-        # Ensure output has .mov extension
-        base_filename = safe_filename
-        if base_filename.lower().endswith('.mp4'):
-            base_filename = base_filename[:-4]  # Remove .mp4
-        elif base_filename.lower().endswith('.mov'):
-            base_filename = base_filename[:-4]  # Remove .mov
-        
-        # Use .mov extension for output
-        output_filename = f"annotated_{exercise_type}_{base_filename}.mov"
-        output_path = os.path.join(VIDEOS_DIR, output_filename)
-    else:
-        output_filename = None
-        output_path = None
-    
-    # 3) Run analysis
+    return_video = False
     try:
-        result = analysis_function(input_path, output_path)
-        print(f"Analysis complete for {exercise_type}. Output path: {output_path}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Processing error: {str(e)}")
+        # Log the incoming request
+        print(f"=== ANALYZE REQUEST START: {exercise_type} ===")
+        print(f"File name: {file.filename}, Content-Type: {file.content_type}")
+        print(f"Return video: {return_video}")
+        
+        # Step 1: Check if the requested exercise type exists
+        exercise_normalized = exercise_type.replace(" ", "_").lower()
+        exercise_normalized = exercise_normalized.replace("-", "_")
+        print(f"Normalized exercise name: {exercise_normalized}")
+        
+        if exercise_normalized not in analysis_functions:
+            print(f"ERROR: Exercise type not found: {exercise_normalized}")
+            print(f"Available types: {list(analysis_functions.keys())}")
+            raise HTTPException(
+                status_code=404,
+                detail=f"Exercise type '{exercise_normalized}' not found. Available types: {list(analysis_functions.keys())}"
+            )
+        
+        # Step 2: Get the appropriate analysis function
+        analysis_function = analysis_functions[exercise_normalized]
+        print(f"Using analysis function: {analysis_function.__name__}")
+        
+        # Step 3: Save the upload to disk
+        safe_filename = file.filename.replace(" ", "_").lower()
+        safe_filename = safe_filename.replace("-", "_")
+        input_path = os.path.join(VIDEOS_DIR, safe_filename)
+        
+        print(f"Saving uploaded file to: {input_path}")
+        with open(input_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        print(f"File saved successfully. Size: {os.path.getsize(input_path)} bytes")
 
-    # 4) Return JSON + video URL if requested
-    payload = {"analysis": result}
-    if return_video and output_path and os.path.exists(output_path):
-        # Use a relative URL path that will be served by the /videos static route
-        video_url = f"/videos/{output_filename}"
-        payload["annotated_video_url"] = video_url
-        print(f"Video URL provided: {video_url}")
-    elif return_video:
-        # If video was requested but doesn't exist
-        payload["error"] = "Annotated video could not be generated"
-        print("Error: Annotated video requested but not generated")
+        # Step 4: Build output path
+        if return_video:
+            base_filename = safe_filename
+            if base_filename.lower().endswith('.mp4'):
+                base_filename = base_filename[:-4]
+            elif base_filename.lower().endswith('.mov'):
+                base_filename = base_filename[:-4]
+            
+            output_filename = f"annotated_{exercise_type}_{base_filename}.mov"
+            output_path = os.path.join(VIDEOS_DIR, output_filename)
+            print(f"Output video will be saved to: {output_path}")
+        else:
+            output_filename = None
+            output_path = None
+            print("No output video requested")
+        
+        # Step 5: Run analysis - THIS IS WHERE THE CRASH LIKELY HAPPENS
+        try:
+            # FOR DEBUGGING: catch any errors during analysis
+            print(f"Starting analysis with {analysis_function.__name__}...")
+            
+            # Use a try-except block to catch any errors in the analysis function
+            try:
+                result = analysis_function(input_path, output_path)
+                print(f"Analysis completed successfully")
+            except Exception as analysis_error:
+                print(f"ANALYSIS FUNCTION ERROR: {str(analysis_error)}")
+                import traceback
+                traceback.print_exc()
+                
+                # Fall back to simple analysis for debugging
+                print("Falling back to simplified analysis...")
+                result = {
+                    "error": f"Original analysis failed: {str(analysis_error)}",
+                    "fallback_result": {
+                        "pushup_count": 0,
+                        "form_analysis": {
+                            "elbow_angle_at_bottom": 0,
+                            "elbow_angle_at_top": 0,
+                            "body_alignment_score": 0
+                        },
+                        "feedback": [
+                            f"Error analyzing video: {str(analysis_error)}"
+                        ]
+                    }
+                }
+        except Exception as e:
+            print(f"ERROR DURING ANALYSIS SETUP: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            raise HTTPException(status_code=500, detail=f"Processing error: {str(e)}")
+
+        # Step 6: Return JSON + video URL
+        payload = {"analysis": result}
+        
+        if return_video and output_path and os.path.exists(output_path):
+            video_url = f"/videos/{output_filename}"
+            payload["annotated_video_url"] = video_url
+            print(f"Video URL provided: {video_url}")
+        elif return_video:
+            # If video was requested but doesn't exist
+            payload["warning"] = "Annotated video could not be generated"
+            print("Warning: Annotated video requested but not generated")
+        
+        print("=== ANALYZE REQUEST COMPLETE ===")
+        return JSONResponse(content=payload)
     
-    return JSONResponse(content=payload)
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"UNHANDLED ERROR: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
+    
 
 @app.get("/api/videos/{filename}")
 @app.head("/api/videos/{filename}")  # Add explicit support for HEAD requests
@@ -240,6 +294,107 @@ async def options_route(full_path: str):
     response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
     return response
 
+@app.get("/debug/video_test/")
+async def debug_video_test():
+    """Test video processing capabilities"""
+    try:
+        # Create a simple test video
+        import cv2
+        import numpy as np
+        import os
+        from datetime import datetime
+        
+        # Create a test video file
+        test_video_path = os.path.join(VIDEOS_DIR, "test_video.mp4")
+        
+        # Create a small video with a few frames
+        width, height = 640, 480
+        fps = 30
+        seconds = 2
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        out = cv2.VideoWriter(test_video_path, fourcc, fps, (width, height))
+        
+        # Create some frames
+        for i in range(fps * seconds):
+            # Create a black frame
+            img = np.zeros((height, width, 3), dtype=np.uint8)
+            
+            # Add some text
+            cv2.putText(img, f"Test Frame {i}", (50, 50), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+            
+            # Add current timestamp
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+            cv2.putText(img, timestamp, (50, 100), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            
+            # Add a moving rectangle
+            x = int((i / (fps * seconds)) * width)
+            cv2.rectangle(img, (x, 200), (x + 50, 250), (0, 255, 0), -1)
+            
+            # Write the frame
+            out.write(img)
+        
+        # Release the video writer
+        out.release()
+        
+        # Now try to analyze this test video
+        result = {
+            "video_creation": "success",
+            "video_path": test_video_path,
+            "video_exists": os.path.exists(test_video_path),
+            "video_size": os.path.getsize(test_video_path) if os.path.exists(test_video_path) else 0
+        }
+        
+        # Try to open and read the video
+        try:
+            cap = cv2.VideoCapture(test_video_path)
+            if not cap.isOpened():
+                result["video_reading"] = "failed"
+            else:
+                result["video_reading"] = "success"
+                result["video_properties"] = {
+                    "width": int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
+                    "height": int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
+                    "fps": int(cap.get(cv2.CAP_PROP_FPS)),
+                    "frame_count": int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                }
+                
+                # Read first frame
+                ret, frame = cap.read()
+                if ret:
+                    result["first_frame_read"] = "success"
+                    result["first_frame_shape"] = frame.shape
+                else:
+                    result["first_frame_read"] = "failed"
+                
+                cap.release()
+        except Exception as e:
+            result["video_reading_error"] = str(e)
+        
+        # Try initializing MediaPipe
+        try:
+            import mediapipe as mp
+            mp_pose = mp.solutions.pose
+            pose = mp_pose.Pose(static_image_mode=True, min_detection_confidence=0.5)
+            result["mediapipe_init"] = "success"
+            
+            # Try processing the first frame with MediaPipe
+            if "first_frame_read" in result and result["first_frame_read"] == "success":
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                pose_results = pose.process(frame_rgb)
+                result["mediapipe_processing"] = "success" if pose_results else "no results"
+        except Exception as e:
+            result["mediapipe_error"] = str(e)
+        
+        return result
+    except Exception as e:
+        import traceback
+        return {
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }
+
 # Debug endpoints for videos
 @app.get("/debug/videos")
 def list_videos():
@@ -293,6 +448,114 @@ def debug_analyze_functions():
 @app.get("/exercises/")
 async def list_exercises():
     return {"available_exercises": list(analysis_functions.keys())}
+
+@app.post("/test_upload/")
+async def test_upload(file: UploadFile = File(...)):
+    """Test endpoint for file uploads without analysis"""
+    try:
+        print(f"Test upload received. Filename: {file.filename}, Content-Type: {file.content_type}")
+        
+        # Read a small part of the file to verify it's accessible
+        content = await file.read(1024)  # Read first 1KB
+        file_size = len(content)
+        
+        # Save the file to disk
+        safe_filename = f"test_{file.filename.replace(' ', '_')}"
+        save_path = os.path.join(VIDEOS_DIR, safe_filename)
+        
+        with open(save_path, "wb") as f:
+            f.write(content)
+            # Read and write the rest of the file
+            while content := await file.read(1024):
+                f.write(content)
+                file_size += len(content)
+        
+        # Check if file was saved
+        saved_size = os.path.getsize(save_path) if os.path.exists(save_path) else 0
+        
+        return {
+            "success": True,
+            "filename": file.filename,
+            "content_type": file.content_type,
+            "size_read": file_size,
+            "saved_path": save_path,
+            "saved_size": saved_size,
+            "file_exists": os.path.exists(save_path),
+            "videos_dir": VIDEOS_DIR
+        }
+    except Exception as e:
+        print(f"Error in test upload: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "success": False,
+            "error": str(e),
+            "error_type": type(e).__name__
+        }
+    
+@app.post("/test_post/")
+async def test_post(request: Request):
+    """Test endpoint for simple POST requests"""
+    try:
+        # Try to read the request body
+        body = await request.body()
+        
+        # Get headers
+        headers = dict(request.headers.items())
+        
+        return {
+            "success": True,
+            "method": request.method,
+            "body_length": len(body),
+            "content_type": headers.get("content-type", "Not specified"),
+            "headers": headers
+        }
+    except Exception as e:
+        print(f"Error in test POST: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "success": False,
+            "error": str(e),
+            "error_type": type(e).__name__
+        }
+    
+@app.get("/debug/mediapipe_test/")
+async def test_mediapipe():
+    """Test if MediaPipe and OpenCV are working"""
+    try:
+        # Try importing libraries
+        import mediapipe as mp
+        import cv2
+        import numpy as np
+        
+        # Create a simple test image
+        test_img = np.zeros((100, 100, 3), dtype=np.uint8)
+        
+        # Try initializing MediaPipe Pose
+        mp_pose = mp.solutions.pose
+        pose = mp_pose.Pose(static_image_mode=True, min_detection_confidence=0.5)
+        
+        # Try processing the test image
+        results = pose.process(test_img)
+        
+        return {
+            "success": True,
+            "mediapipe_version": mp.__version__,
+            "opencv_version": cv2.__version__,
+            "numpy_version": np.__version__,
+            "pose_results": "Empty (expected for blank image)",
+            "test_image_shape": test_img.shape
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {
+            "success": False,
+            "error": str(e),
+            "error_type": type(e).__name__,
+            "traceback": traceback.format_exc()
+        }
 
 # Workout generation endpoints
 @app.post("/api/generate-workout")
@@ -506,11 +769,78 @@ def api_status():
         }
     }
 
+@app.post("/debug/analyze_push_ups/")
+async def debug_analyze_push_ups(file: UploadFile = File(...), return_video: bool = Query(False)):
+    """Debugging endpoint for push-ups analysis that uses simplified function"""
+    try:
+        print(f"Debug push-ups analysis requested. Filename: {file.filename}")
+        
+        # Save the file
+        safe_filename = file.filename.replace(" ", "_").lower()
+        safe_filename = safe_filename.replace("-", "_")
+        input_path = os.path.join(VIDEOS_DIR, safe_filename)
+        
+        with open(input_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # Call the simplified function
+        result = analyze_module.analyze_push_ups_simple(input_path, None)
+        
+        # Return the result
+        return {"analysis": result, "debug": True}
+    except Exception as e:
+        print(f"Error in debug push-ups analysis: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "success": False,
+            "error": str(e),
+            "error_type": type(e).__name__
+        }
+
+@app.post("/simple_push_ups/")
+async def simple_push_ups_analysis(file: UploadFile = File(...)):
+    """Simplified version of push-ups analysis for debugging"""
+    try:
+        print(f"Simple push-ups analysis request received. Filename: {file.filename}")
+        
+        # Save the file
+        safe_filename = file.filename.replace(" ", "_").lower()
+        input_path = os.path.join(VIDEOS_DIR, safe_filename)
+        
+        with open(input_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # Return a mock analysis without actually running the analysis code
+        mock_result = {
+            "pushup_count": 5,
+            "form_analysis": {
+                "elbow_angle_at_bottom": 90.5,
+                "elbow_angle_at_top": 165.3,
+                "body_alignment_score": 85.2,
+                "frames_analyzed": 120
+            },
+            "feedback": [
+                "Great form! Your pushups have good depth and body alignment."
+            ]
+        }
+        
+        return {"analysis": mock_result, "test_mode": True}
+    except Exception as e:
+        print(f"Error in simple push-ups analysis: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
 # Simple endpoint for CORS testing
 @app.options("/")
 @app.get("/")
 def root():
     return {"message": "Fitness Buddy API is running"}
+
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
