@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fitai-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fitai-backend
+  template:
+    metadata:
+      labels:
+        app: fitai-backend
+    spec:
+      containers:
+      - name: fitai-backend
+        image: gcr.io/fitai-459007/fitai-backend:latest
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "200m"
