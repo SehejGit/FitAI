@@ -18,6 +18,12 @@ spec:
         image: gcr.io/fitai-459007/fitai-backend:latest
         ports:
         - containerPort: 8080
+        env:
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: openai-api-key
+              key: OPENAI_API_KEY
         resources:
           requests:
             memory: "1Gi"

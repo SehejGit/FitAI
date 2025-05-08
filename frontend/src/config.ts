@@ -2,7 +2,7 @@
 
 // API Configuration 
 // Default to localhost:8000 if no environment variable is set
-export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+export const API_BASE_URL = process.env.REACT_APP_API_URL || '';  
 
 // Changed to refer to the deployed backend
 // export const API_BASE_URL = process.env.REACT_APP_API_URL || '';  
