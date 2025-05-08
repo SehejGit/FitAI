@@ -19,6 +19,8 @@ A web application that analyzes exercise form from uploaded videos using compute
 - OpenCV
 - MediaPipe
 - Flask
+- cv2
+
 
 ### Setup
 
