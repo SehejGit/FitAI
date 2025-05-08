@@ -8,3 +8,5 @@ google-cloud-storage
 pydantic
 reportlab
 streamlit
+openai
+google-cloud-secret-manager

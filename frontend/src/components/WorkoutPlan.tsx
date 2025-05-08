@@ -21,6 +21,7 @@ import {
   DialogTitle
 } from '@mui/material';
 import { Link } from 'react-router-dom';
+import AiInsights from './AiInsights';
 
 // Define prop types
 interface Exercise {
@@ -38,11 +39,12 @@ interface WorkoutDay {
 
 interface WorkoutPlanProps {
   workoutDays: WorkoutDay[];
+  aiInsights?: any;
   onCreateNewPlan: () => void;
-  onSaveWorkout: (planName: string) => Promise<void> | void;  // Allow both async and regular functions
+  onSaveWorkout: (planName: string) => Promise<void> | void;
 }
 
-const WorkoutPlan: React.FC<WorkoutPlanProps> = ({ workoutDays, onCreateNewPlan, onSaveWorkout }) => {
+const WorkoutPlan: React.FC<WorkoutPlanProps> = ({ workoutDays, aiInsights, onCreateNewPlan, onSaveWorkout }) => {
   const [tabValue, setTabValue] = useState(0);
   const [planName, setPlanName] = useState("");
   const [showSaveDialog, setShowSaveDialog] = useState(false);
@@ -249,6 +251,7 @@ const WorkoutPlan: React.FC<WorkoutPlanProps> = ({ workoutDays, onCreateNewPlan,
           </Button>
         </DialogActions>
       </Dialog>
+      {aiInsights && <AiInsights insights={aiInsights} />}
     </Box>
   );
 };
