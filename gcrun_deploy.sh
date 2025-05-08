@@ -32,7 +32,7 @@ gcloud run deploy fitai-backend \
   --cpu 4 \
   --timeout 1800 \
   --concurrency 80 \
-  --set-env-vars="OPENAI_API_KEY=sk-proj-" \
+  --set-env-vars="OPENAI_API_KEY=sk-proj--iEHpvzJQpgJLfqQeSAA" \
   --allow-unauthenticated
 
 echo "Deployment successful!"
