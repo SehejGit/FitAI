@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Box, 
-  Typography, 
+import React, { useState, useEffect } from "react";
+import {
+  Box,
+  Typography,
   Button,
   Paper,
   List,
@@ -25,14 +25,21 @@ import {
   TableCell,
   TableContainer,
   TableHead,
-  TableRow
-} from '@mui/material';
-import { 
+  TableRow,
+  Tooltip,
+} from "@mui/material";
+import {
   ExpandMore as ExpandMoreIcon,
   Download as DownloadIcon,
-  Check as CheckIcon
-} from '@mui/icons-material';
-import { getSavedWorkouts, logWorkoutCompletion, downloadWorkoutPlan } from '../services/workoutService';
+  Check as CheckIcon,
+  PlayCircleFilled as PlayCircleFilledIcon,
+} from "@mui/icons-material";
+import {
+  getSavedWorkouts,
+  logWorkoutCompletion,
+  downloadWorkoutPlan,
+} from "../services/workoutService";
+import { Link } from "react-router-dom";
 
 // Define types for workout data
 interface Exercise {
@@ -68,9 +75,11 @@ const SavedWorkouts: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [openLogDialog, setOpenLogDialog] = useState<boolean>(false);
-  const [selectedWorkout, setSelectedWorkout] = useState<SavedWorkout | null>(null);
-  const [selectedDay, setSelectedDay] = useState<string>('');
-  const [logNotes, setLogNotes] = useState<string>('');
+  const [selectedWorkout, setSelectedWorkout] = useState<SavedWorkout | null>(
+    null
+  );
+  const [selectedDay, setSelectedDay] = useState<string>("");
+  const [logNotes, setLogNotes] = useState<string>("");
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -81,41 +90,47 @@ const SavedWorkouts: React.FC = () => {
     try {
       setIsLoading(true);
       setError(null);
-      
-      console.log('Fetching saved workouts...');
+
+      console.log("Fetching saved workouts...");
       const data = await getSavedWorkouts();
-      
+
       // Log the API response to see what we're getting
-      console.log('API Response:', data);
-      
+      console.log("API Response:", data);
+
       // Handle different response formats
       if (data && data.success && Array.isArray(data.workouts)) {
-        console.log('Found workouts in data.workouts:', data.workouts);
+        console.log("Found workouts in data.workouts:", data.workouts);
         setWorkouts(data.workouts);
       } else if (Array.isArray(data)) {
-        console.log('Data is directly an array:', data);
+        console.log("Data is directly an array:", data);
         setWorkouts(data);
-      } else if (data && typeof data === 'object') {
+      } else if (data && typeof data === "object") {
         // Try to extract workouts from any property that might be an array
-        const possibleWorkoutsProps = Object.entries(data)
-          .find(([_, value]) => Array.isArray(value) && value.length > 0);
-        
+        const possibleWorkoutsProps = Object.entries(data).find(
+          ([_, value]) => Array.isArray(value) && value.length > 0
+        );
+
         if (possibleWorkoutsProps) {
-          console.log(`Found workouts in data.${possibleWorkoutsProps[0]}:`, possibleWorkoutsProps[1]);
+          console.log(
+            `Found workouts in data.${possibleWorkoutsProps[0]}:`,
+            possibleWorkoutsProps[1]
+          );
           setWorkouts(possibleWorkoutsProps[1] as any[]);
         } else {
-          console.error('No workout array found in response:', data);
+          console.error("No workout array found in response:", data);
           setWorkouts([]);
-          setError('No workouts found in the server response.');
+          setError("No workouts found in the server response.");
         }
       } else {
-        console.error('Unexpected data format:', data);
+        console.error("Unexpected data format:", data);
         setWorkouts([]);
-        setError('Received an unexpected data format from the server.');
+        setError("Received an unexpected data format from the server.");
       }
     } catch (err: any) {
-      console.error('Error fetching workouts:', err);
-      setError(`Failed to load saved workouts: ${err.message || 'Unknown error'}`);
+      console.error("Error fetching workouts:", err);
+      setError(
+        `Failed to load saved workouts: ${err.message || "Unknown error"}`
+      );
     } finally {
       setIsLoading(false);
     }
@@ -124,32 +139,34 @@ const SavedWorkouts: React.FC = () => {
   const handleLogWorkout = (workout: SavedWorkout, day: string) => {
     setSelectedWorkout(workout);
     setSelectedDay(day);
-    setLogNotes('');
+    setLogNotes("");
     setOpenLogDialog(true);
   };
 
   const handleSubmitLog = async () => {
     if (!selectedWorkout) return;
-    
+
     try {
       setIsLoading(true);
-      
+
       const logData = {
         workout_name: selectedWorkout.name,
-        date: new Date().toISOString().split('T')[0], // YYYY-MM-DD format
+        date: new Date().toISOString().split("T")[0], // YYYY-MM-DD format
         day: selectedDay,
-        notes: logNotes
+        notes: logNotes,
       };
-      
+
       await logWorkoutCompletion(logData);
       setOpenLogDialog(false);
-      setSuccessMessage(`Workout "${selectedDay}" from "${selectedWorkout.name}" logged successfully!`);
-      
+      setSuccessMessage(
+        `Workout "${selectedDay}" from "${selectedWorkout.name}" logged successfully!`
+      );
+
       // Clear success message after 3 seconds
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err: any) {
-      console.error('Error logging workout:', err);
-      setError('Failed to log workout. Please try again.');
+      console.error("Error logging workout:", err);
+      setError("Failed to log workout. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -161,7 +178,7 @@ const SavedWorkouts: React.FC = () => {
 
   if (isLoading && workouts.length === 0) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+      <Box sx={{ display: "flex", justifyContent: "center", my: 4 }}>
         <CircularProgress />
       </Box>
     );
@@ -182,7 +199,8 @@ const SavedWorkouts: React.FC = () => {
           No Saved Workouts
         </Typography>
         <Typography variant="body1">
-          You haven't saved any workout plans yet. Generate a new workout plan to get started!
+          You haven't saved any workout plans yet. Generate a new workout plan
+          to get started!
         </Typography>
       </Paper>
     );
@@ -202,7 +220,7 @@ const SavedWorkouts: React.FC = () => {
 
       <List>
         {workouts.map((workout) => (
-          <Paper key={workout.id} sx={{ mb: 3, overflow: 'hidden' }}>
+          <Paper key={workout.id} sx={{ mb: 3, overflow: "hidden" }}>
             <Accordion>
               <AccordionSummary
                 expandIcon={<ExpandMoreIcon />}
@@ -210,27 +228,40 @@ const SavedWorkouts: React.FC = () => {
                 id={`workout-${workout.id}-header`}
               >
                 <Typography variant="h6">{workout.name}</Typography>
-                <Typography variant="body2" sx={{ ml: 2, color: 'text.secondary' }}>
+                <Typography
+                  variant="body2"
+                  sx={{ ml: 2, color: "text.secondary" }}
+                >
                   Created: {workout.date_created}
                 </Typography>
               </AccordionSummary>
-              
+
               <AccordionDetails>
                 <Box sx={{ mb: 2 }}>
                   <Typography variant="subtitle1">Details:</Typography>
-                  <Typography>Goal: {workout.user_data.fitness_goal}</Typography>
-                  <Typography>Fitness Level: {workout.user_data.fitness_level}</Typography>
-                  <Typography>Equipment: {workout.user_data.equipment.join(', ')}</Typography>
-                  <Typography>Session Duration: {workout.time_per_session} minutes</Typography>
+                  <Typography>
+                    Goal: {workout.user_data.fitness_goal}
+                  </Typography>
+                  <Typography>
+                    Fitness Level: {workout.user_data.fitness_level}
+                  </Typography>
+                  <Typography>
+                    Equipment: {workout.user_data.equipment.join(", ")}
+                  </Typography>
+                  <Typography>
+                    Session Duration: {workout.time_per_session} minutes
+                  </Typography>
                   {workout.user_data.injuries && (
-                    <Typography>Considerations: {workout.user_data.injuries}</Typography>
+                    <Typography>
+                      Considerations: {workout.user_data.injuries}
+                    </Typography>
                   )}
                 </Box>
-                
+
                 <Typography variant="subtitle1" gutterBottom>
                   Workout Schedule:
                 </Typography>
-                
+
                 <TableContainer sx={{ mb: 3 }}>
                   <Table size="small">
                     <TableHead>
@@ -246,7 +277,9 @@ const SavedWorkouts: React.FC = () => {
                         <TableRow key={index}>
                           <TableCell>{day.day}</TableCell>
                           <TableCell>{day.name}</TableCell>
-                          <TableCell>{day.exercises.length} exercises</TableCell>
+                          <TableCell>
+                            {day.exercises.length} exercises
+                          </TableCell>
                           <TableCell align="right">
                             <Button
                               size="small"
@@ -262,19 +295,23 @@ const SavedWorkouts: React.FC = () => {
                     </TableBody>
                   </Table>
                 </TableContainer>
-                
+
                 <Accordion>
                   <AccordionSummary
                     expandIcon={<ExpandMoreIcon />}
                     aria-controls={`workout-${workout.id}-exercises`}
                     id={`workout-${workout.id}-exercises-header`}
                   >
-                    <Typography variant="subtitle1">View All Exercises</Typography>
+                    <Typography variant="subtitle1">
+                      View All Exercises
+                    </Typography>
                   </AccordionSummary>
                   <AccordionDetails>
                     {workout.workout_plan.map((day, dayIndex) => (
                       <Box key={dayIndex} sx={{ mb: 3 }}>
-                        <Typography variant="subtitle2">{day.day}: {day.name}</Typography>
+                        <Typography variant="subtitle2">
+                          {day.day}: {day.name}
+                        </Typography>
                         <TableContainer>
                           <Table size="small">
                             <TableHead>
@@ -283,15 +320,46 @@ const SavedWorkouts: React.FC = () => {
                                 <TableCell align="center">Sets</TableCell>
                                 <TableCell align="center">Reps</TableCell>
                                 <TableCell align="center">Rest</TableCell>
+                                <TableCell align="center">Video</TableCell>
                               </TableRow>
                             </TableHead>
                             <TableBody>
                               {day.exercises.map((exercise, exIndex) => (
                                 <TableRow key={exIndex}>
                                   <TableCell>{exercise.name}</TableCell>
-                                  <TableCell align="center">{exercise.sets}</TableCell>
-                                  <TableCell align="center">{exercise.reps}</TableCell>
-                                  <TableCell align="center">{exercise.rest}</TableCell>
+                                  <TableCell align="center">
+                                    {exercise.sets}
+                                  </TableCell>
+                                  <TableCell align="center">
+                                    {exercise.reps}
+                                  </TableCell>
+                                  <TableCell align="center">
+                                    {exercise.rest}
+                                  </TableCell>
+                                  <TableCell align="center">
+                                    <Tooltip title="Watch & Record Exercise">
+                                      <Button
+                                        component={Link}
+                                        to={`/video/${
+                                          dayIndex + 1
+                                        }/${encodeURIComponent(exercise.name)}`}
+                                        variant="contained"
+                                        color="primary"
+                                        startIcon={<PlayCircleFilledIcon />}
+                                        sx={{
+                                          borderRadius: "24px",
+                                          fontWeight: "bold",
+                                          textTransform: "none",
+                                          px: 2,
+                                          py: 1,
+                                          boxShadow: 2,
+                                          fontSize: "1rem",
+                                        }}
+                                      >
+                                        Watch & Record
+                                      </Button>
+                                    </Tooltip>
+                                  </TableCell>
                                 </TableRow>
                               ))}
                             </TableBody>
@@ -301,8 +369,10 @@ const SavedWorkouts: React.FC = () => {
                     ))}
                   </AccordionDetails>
                 </Accordion>
-                
-                <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+
+                <Box
+                  sx={{ mt: 2, display: "flex", justifyContent: "flex-end" }}
+                >
                   <Button
                     variant="contained"
                     color="primary"
@@ -317,7 +387,7 @@ const SavedWorkouts: React.FC = () => {
           </Paper>
         ))}
       </List>
-      
+
       {/* Log Workout Dialog */}
       <Dialog open={openLogDialog} onClose={() => setOpenLogDialog(false)}>
         <DialogTitle>Log Workout Completion</DialogTitle>
@@ -345,9 +415,9 @@ const SavedWorkouts: React.FC = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenLogDialog(false)}>Cancel</Button>
-          <Button 
-            onClick={handleSubmitLog} 
-            color="primary" 
+          <Button
+            onClick={handleSubmitLog}
+            color="primary"
             variant="contained"
             disabled={isLoading}
           >
