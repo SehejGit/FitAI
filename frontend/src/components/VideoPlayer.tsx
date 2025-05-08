@@ -1,3 +1,4 @@
+// VideoPlayer.tsx
 import * as React from 'react';
 import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';

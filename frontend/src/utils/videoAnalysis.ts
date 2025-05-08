@@ -1,3 +1,4 @@
+// videoAnalysis.ts
 import { API_BASE_URL, VIDEO_ANALYSIS_CONFIG } from '../config';
 
 // Define the interface for analysis results
@@ -46,8 +47,13 @@ export const fetchAvailableExercises = async (): Promise<string[]> => {
  * Format exercise name for API endpoint
  * Convert to lowercase and replace spaces with underscores
  */
+// Make sure in videoAnalysis.ts that this correctly formats the name
 export const formatExerciseNameForApi = (exerciseName: string): string => {
-  return exerciseName.toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_');
+  // Log before and after for debugging
+  console.log(`Formatting exercise name: "${exerciseName}"`);
+  const formatted = exerciseName.toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_');
+  console.log(`Formatted to: "${formatted}"`);
+  return formatted;
 };
 
 /**

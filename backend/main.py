@@ -1,4 +1,4 @@
-# main.py
+# backend/main.py
 
 import os
 import shutil
@@ -27,7 +27,7 @@ analysis_functions = {}
 for name, func in inspect.getmembers(analyze_module, inspect.isfunction):
     if name.startswith("analyze_"):
         exercise_name = name[8:].lower()
-        exercise_name.replace(" ", "_").replace("-", "_")
+        exercise_name = exercise_name.replace(" ", "_").replace("-", "_")  # FIX: Assign the result back
         analysis_functions[exercise_name] = func
 
 # Create a directory for storing videos if it doesn't exist
@@ -41,10 +41,11 @@ app.mount("/videos", StaticFiles(directory=VIDEOS_DIR), name="videos")
 # Configure CORS - CRITICAL for React frontend to work correctly
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # For development, allow all origins
+    allow_origins=["*", "https://fitai-459007.web.app"],  # Add your frontend URL explicitly
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],  # Important for preflight requests
 )
 
 # Add request logging middleware
@@ -230,6 +231,15 @@ async def options_video(filename: str):
     print(f"Handled OPTIONS request for: {filename}")
     return response
 
+@app.options("/{full_path:path}")
+async def options_route(full_path: str):
+    """Handle OPTIONS requests for all endpoints"""
+    response = Response()
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    return response
+
 # Debug endpoints for videos
 @app.get("/debug/videos")
 def list_videos():
@@ -263,6 +273,21 @@ def debug_video(video_name: str):
         response["access_url"] = f"/videos/{video_name}"
     
     return response
+
+# Add this new debug endpoint here
+@app.get("/debug/analyze_functions")
+def debug_analyze_functions():
+    """Debug endpoint to check exercise function mappings"""
+    return {
+        "available_functions": [name for name in analysis_functions.keys()],
+        "analyze_module_functions": [name for name, _ in inspect.getmembers(analyze_module, inspect.isfunction) 
+                                   if name.startswith("analyze_")],
+        "mapping_example": {
+            "push_ups": "push_ups" in analysis_functions,
+            "pushups": "pushups" in analysis_functions,
+            "push-ups": "push-ups" in analysis_functions
+        }
+    }
 
 # Endpoint to list available exercise types
 @app.get("/exercises/")
