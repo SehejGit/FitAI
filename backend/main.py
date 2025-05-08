@@ -26,7 +26,8 @@ app = FastAPI(title="Fitness Buddy API")
 analysis_functions = {}
 for name, func in inspect.getmembers(analyze_module, inspect.isfunction):
     if name.startswith("analyze_"):
-        exercise_name = name[8:]
+        exercise_name = name[8:].lower()
+        exercise_name.replace(" ", "_").replace("-", "_")
         analysis_functions[exercise_name] = func
 
 # Create a directory for storing videos if it doesn't exist
@@ -110,18 +111,21 @@ async def analyze_exercise_endpoint(
     return_video: bool = Query(False, description="Also return the annotated video")
 ):
     # Check if the requested exercise type exists
-    if exercise_type not in analysis_functions:
+    exercise_normalized = exercise_type.replace(" ", "_").lower()
+    exercise_normalized = exercise_normalized.replace("-", "_")
+    print(exercise_normalized)
+    if exercise_normalized not in analysis_functions:
         raise HTTPException(
-            status_code=404, 
-            detail=f"Exercise type '{exercise_type}' not found. Available types: {list(analysis_functions.keys())}"
+            status_code=404,
+            detail=f"Exercise type '{exercise_normalized}' not found. Available types: {list(analysis_functions.keys())}"
         )
     
     # Get the appropriate analysis function
-    analysis_function = analysis_functions[exercise_type]
+    analysis_function = analysis_functions[exercise_normalized]
     
     # 1) Save the upload to disk with proper filename handling
     safe_filename = file.filename.replace(" ", "_").lower()
-    safe_filename = file.filename.replace("-", "_").lower()
+    safe_filename = file.filename.replace("-", "_")
     input_path = os.path.join(VIDEOS_DIR, safe_filename)
     
     with open(input_path, "wb") as buffer:

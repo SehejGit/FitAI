@@ -47,7 +47,7 @@ export const fetchAvailableExercises = async (): Promise<string[]> => {
  * Convert to lowercase and replace spaces with underscores
  */
 export const formatExerciseNameForApi = (exerciseName: string): string => {
-  return exerciseName.toLowerCase().replace(/\s+/g, '_');
+  return exerciseName.toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_');
 };
 
 /**

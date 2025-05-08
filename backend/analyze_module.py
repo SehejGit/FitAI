@@ -2617,7 +2617,7 @@ def analyze_mountain_climbers(video_path, output_video_path=None):
     
     return feedback
 
-def analyze_russian_twist(video_path, output_video_path=None):
+def analyze_russian_twists(video_path, output_video_path=None):
     cap = cv2.VideoCapture(video_path)
     frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -4197,7 +4197,7 @@ def analyze_plank_shoulder_taps(video_path, output_video_path=None):
 
     return result
 
-def analyze_pike_pushups(video_path, output_video_path=None):
+def analyze_pike_push_ups(video_path, output_video_path=None):
     cap = cv2.VideoCapture(video_path)
     w, h = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps  = cap.get(cv2.CAP_PROP_FPS)
