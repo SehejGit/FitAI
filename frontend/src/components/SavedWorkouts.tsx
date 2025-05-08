@@ -81,11 +81,41 @@ const SavedWorkouts: React.FC = () => {
     try {
       setIsLoading(true);
       setError(null);
+      
+      console.log('Fetching saved workouts...');
       const data = await getSavedWorkouts();
-      setWorkouts(data.workouts || []);
+      
+      // Log the API response to see what we're getting
+      console.log('API Response:', data);
+      
+      // Handle different response formats
+      if (data && data.success && Array.isArray(data.workouts)) {
+        console.log('Found workouts in data.workouts:', data.workouts);
+        setWorkouts(data.workouts);
+      } else if (Array.isArray(data)) {
+        console.log('Data is directly an array:', data);
+        setWorkouts(data);
+      } else if (data && typeof data === 'object') {
+        // Try to extract workouts from any property that might be an array
+        const possibleWorkoutsProps = Object.entries(data)
+          .find(([_, value]) => Array.isArray(value) && value.length > 0);
+        
+        if (possibleWorkoutsProps) {
+          console.log(`Found workouts in data.${possibleWorkoutsProps[0]}:`, possibleWorkoutsProps[1]);
+          setWorkouts(possibleWorkoutsProps[1] as any[]);
+        } else {
+          console.error('No workout array found in response:', data);
+          setWorkouts([]);
+          setError('No workouts found in the server response.');
+        }
+      } else {
+        console.error('Unexpected data format:', data);
+        setWorkouts([]);
+        setError('Received an unexpected data format from the server.');
+      }
     } catch (err: any) {
       console.error('Error fetching workouts:', err);
-      setError('Failed to load saved workouts. Please try again later.');
+      setError(`Failed to load saved workouts: ${err.message || 'Unknown error'}`);
     } finally {
       setIsLoading(false);
     }

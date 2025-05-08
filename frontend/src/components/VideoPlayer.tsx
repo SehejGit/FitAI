@@ -35,11 +35,11 @@ import { checkVideoUrlAccess } from '../utils/corsCheck';
 import { API_BASE_URL } from '../config';
 
 const getExerciseVideoUrl = (exerciseName: string): string => {
-  // normalize “Mountain climbers” → “mountain_climbers”, “push-ups” → “push_ups”
+  // normalize "Mountain climbers" → "mountain_climbers", "push-ups" → "push_ups"
   const formatted = exerciseName
     .toLowerCase()
     .replace(/[\s-]+/g, '_');
-  // match your bucket’s uppercase extension
+  // match your bucket's uppercase extension
   const ext = '.MOV';
   return `https://storage.googleapis.com/fitai-videos/${formatted}${ext}`;
 };
@@ -67,13 +67,15 @@ const VideoPlayer: React.FC<VideoPlayerProps> = () => {
   const [videoAccessError, setVideoAccessError] = useState<string | null>(null);
   const [availableExercises, setAvailableExercises] = useState<string[]>([]);
   const [isExerciseSupported, setIsExerciseSupported] = useState<boolean>(true);
+  const [videoRetryCount, setVideoRetryCount] = useState(0);
+  const [isRetryingVideo, setIsRetryingVideo] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoFileRef = useRef<File | null>(null);
   
   const decodedExercise = exercise ? decodeURIComponent(exercise) : '';
   const formattedExercise = formatExerciseNameForApi(decodedExercise);
   const videoUrl = getExerciseVideoUrl(decodedExercise);
-  console.log("REACT URL", process.env.REACT_APP_API_URL)
+  
   // Fetch available exercises from API on component mount and check if current exercise is supported
   useEffect(() => {
     const fetchExercises = async () => {
@@ -99,12 +101,15 @@ const VideoPlayer: React.FC<VideoPlayerProps> = () => {
     setAnalysisError(null);
     setShowAnnotatedVideo(false);
     setVideoAccessError(null);
+    setVideoRetryCount(0);
+    setIsRetryingVideo(false);
     videoFileRef.current = null;
   }, [exercise]);
   
   const getVideoApiUrl = (url: string | undefined): string => {
     // If url is undefined, return empty string
     if (!url) {
+      console.warn('getVideoApiUrl called with undefined URL');
       return '';
     }
     
@@ -120,8 +125,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = () => {
     
     console.log('Extracted filename:', filename);
     
-    // Don't modify the filename at all - let the server handle the variations
-    // Just pass it as is to the API endpoint
+    // Check if the URL looks correct
+    if (!filename.includes('annotated_')) {
+      console.warn('Filename does not contain "annotated_":', filename);
+    }
+    
+    // Create the API URL
     const apiUrl = `${API_BASE_URL}/api/videos/${filename}`;
     console.log('Final API URL:', apiUrl);
     return apiUrl;
@@ -201,16 +210,22 @@ const VideoPlayer: React.FC<VideoPlayerProps> = () => {
       setAnalysisError(null);
       setShowAnnotatedVideo(false);
       setVideoAccessError(null);
+      setVideoRetryCount(0);
+      setIsRetryingVideo(false);
     }
   };
 
   // Get the current video source to display
   const getCurrentVideoSrc = (): string => {
+    console.log('Getting current video src, showAnnotatedVideo:', showAnnotatedVideo);
+    console.log('analysisResults?.annotatedVideoUrl:', analysisResults?.annotatedVideoUrl);
+    
     if (showAnnotatedVideo && analysisResults?.annotatedVideoUrl) {
       const videoSrc = getVideoApiUrl(analysisResults.annotatedVideoUrl);
-      console.log('Using video source:', videoSrc);
+      console.log('Returning annotated video source:', videoSrc);
       return videoSrc;
     }
+    console.log('Returning uploaded video source:', uploadedVideo);
     return uploadedVideo || '';
   };
   
@@ -218,14 +233,16 @@ const VideoPlayer: React.FC<VideoPlayerProps> = () => {
     if (!uploadedVideo || !videoFileRef.current) return;
     
     // Don't allow analysis if the exercise isn't supported
-    if (!isExerciseSupported) {
-      setAnalysisError(`Exercise "${decodedExercise}" is not supported for analysis. Available exercises: ${availableExercises.join(', ')}`);
-      return;
-    }
+    // if (!isExerciseSupported) {
+    //   setAnalysisError(`Exercise "${decodedExercise}" is not supported for analysis. Available exercises: ${availableExercises.join(', ')}`);
+    //   return;
+    // }
     
     setIsAnalyzing(true);
     setAnalysisError(null);
     setVideoAccessError(null);
+    setVideoRetryCount(0);
+    setIsRetryingVideo(false);
     
     try {
       console.log('Analyzing video file:', videoFileRef.current.name, videoFileRef.current.type);
@@ -280,7 +297,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = () => {
   };
   
   const handleToggleVideo = () => {
+    console.log('Toggling video - current state:', showAnnotatedVideo);
+    console.log('Analysis results URL exists:', !!analysisResults?.annotatedVideoUrl);
     setShowAnnotatedVideo(!showAnnotatedVideo);
+    // Reset retry count when toggling
+    setVideoRetryCount(0);
+    setVideoAccessError(null);
   };
   
   const handleGoBack = () => {
@@ -337,6 +359,30 @@ const VideoPlayer: React.FC<VideoPlayerProps> = () => {
       console.error('Error in direct API fetch:', error);
       setVideoAccessError(`API fetch error: ${error instanceof Error ? error.message : String(error)}`);
     }
+  };
+  
+  // Add retry mechanism for failed video loads
+  const handleVideoRetry = async () => {
+    if (videoRetryCount >= 3) {
+      setVideoAccessError('Failed to load video after multiple attempts. Please check if the video exists on the server.');
+      return;
+    }
+    
+    setIsRetryingVideo(true);
+    setVideoAccessError(null);
+    setVideoRetryCount(prev => prev + 1);
+    
+    // Wait a moment before retrying
+    setTimeout(() => {
+      setIsRetryingVideo(false);
+      // Force video reload by changing the src slightly
+      const videoElement = document.querySelector('video[key="annotated"]') as HTMLVideoElement;
+      if (videoElement && analysisResults?.annotatedVideoUrl) {
+        const newSrc = `${getVideoApiUrl(analysisResults.annotatedVideoUrl)}?retry=${videoRetryCount}`;
+        videoElement.src = newSrc;
+        videoElement.load();
+      }
+    }, 1000);
   };
   
   // Calculate color based on score
@@ -531,57 +577,106 @@ const VideoPlayer: React.FC<VideoPlayerProps> = () => {
                         overflow: 'hidden'
                       }}
                     >
-                      {/* Original video */}
-                      {!showAnnotatedVideo && (
+                      {/* Show original video or annotated video based on toggle */}
+                      {!showAnnotatedVideo ? (
                         <video 
+                          key="original"
                           controls 
                           src={uploadedVideo} 
                           style={{ width: '100%', height: '100%' }}
+                          onError={(e) => {
+                            console.error('Original video error:', e);
+                          }}
                         />
-                      )}
-                      
-                      {/* Annotated video (if available) */}
-                      {showAnnotatedVideo && analysisResults?.annotatedVideoUrl && (
+                      ) : analysisResults?.annotatedVideoUrl ? (
                         <>
                           {videoAccessError ? (
                             <Box sx={{ p: 3, textAlign: 'center' }}>
                               <ErrorIcon sx={{ fontSize: 48, color: 'error.main', mb: 2 }} />
                               <Typography color="error" variant="body1" gutterBottom>
-                                Unable to load annotated video
+                                {videoAccessError}
                               </Typography>
-                              <Typography color="text.secondary" variant="body2">
-                                The server may still be processing your video or there may be an access issue.
-                              </Typography>
+                              {videoRetryCount < 3 && (
+                                <Button 
+                                  variant="contained" 
+                                  color="primary" 
+                                  size="small"
+                                  sx={{ mt: 1 }}
+                                  onClick={handleVideoRetry}
+                                  disabled={isRetryingVideo}
+                                >
+                                  {isRetryingVideo ? <CircularProgress size={20} /> : 'Retry Loading Video'}
+                                </Button>
+                              )}
                               {videoDebugMode && (
                                 <Button 
                                   variant="outlined" 
                                   color="primary" 
                                   size="small"
-                                  sx={{ mt: 1 }}
+                                  sx={{ mt: 1, ml: 1 }}
                                   onClick={handleFetchRawAnnotatedVideo}
                                 >
-                                  Retry Video Access
+                                  Test Direct API Access
                                 </Button>
                               )}
                             </Box>
                           ) : (
                             <video 
+                              key="annotated"
                               controls 
-                              src={getVideoApiUrl(analysisResults.annotatedVideoUrl)} 
+                              src={getCurrentVideoSrc()} 
                               style={{ width: '100%', height: '100%' }}
+                              crossOrigin="anonymous"
                               onError={(e) => {
-                                console.error('Video load error:', e);
+                                console.error('Annotated video error:', e);
+                                console.log('Failed annotated video URL:', e.currentTarget.src);
                                 
-                                // Log additional information about the URL
-                                const videoSrc = getCurrentVideoSrc();
-                                console.error('Failed video URL:', videoSrc);
+                                // Check if we have specific error details
+                                const videoElement = e.currentTarget as HTMLVideoElement;
+                                let errorMessage = 'Error loading video. Please try again.';
                                 
-                                setVideoAccessError('Error loading video. Check if the video file exists and is accessible.');
+                                if (videoElement.error) {
+                                  // Map error codes to more helpful messages
+                                  switch (videoElement.error.code) {
+                                    case videoElement.error.MEDIA_ERR_ABORTED:
+                                      errorMessage = 'Video loading was aborted.';
+                                      break;
+                                    case videoElement.error.MEDIA_ERR_NETWORK:
+                                      errorMessage = 'Network error while loading the video.';
+                                      break;
+                                    case videoElement.error.MEDIA_ERR_DECODE:
+                                      errorMessage = 'Error decoding the video file.';
+                                      break;
+                                    case videoElement.error.MEDIA_ERR_SRC_NOT_SUPPORTED:
+                                      errorMessage = 'Video format not supported.';
+                                      break;
+                                    default:
+                                      errorMessage = `Video error: ${videoElement.error.message || 'Unknown error'}`;
+                                  }
+                                }
+                                
+                                console.log('Video error details:', {
+                                  code: videoElement.error?.code,
+                                  message: videoElement.error?.message,
+                                  src: videoElement.src
+                                });
+                                
+                                // Wait a moment before showing error in case video is still loading
+                                setTimeout(() => {
+                                  setVideoAccessError(errorMessage);
+                                }, 1000);
+                              }}
+                              onLoadStart={() => console.log('Video load started')}
+                              onCanPlay={() => console.log('Video can play')}
+                              onCanPlayThrough={() => {
+                                console.log('Video can play through');
+                                // Clear any existing error when video starts playing
+                                setVideoAccessError(null);
                               }}
                             />
                           )}
                         </>
-                      )}
+                      ) : null}
                     </Box>
                     
                     {analysisResults?.annotatedVideoUrl && (

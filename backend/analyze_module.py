@@ -56,6 +56,43 @@ def detect_orientation(lm):
         return "front"
     return "right" if delta < 0 else "left"
 
+def setup_video_writer(output_path, fps, frame_width, frame_height):
+    """Try multiple codecs to ensure browser compatibility"""
+    
+    # List of codecs to try in order of preference
+    codecs = [
+        'mp4v',     # MPEG-4 codec (most compatible)
+        'XVID',     # Xvid MPEG-4 codec
+        'X264',     # H.264 codec
+        'avc1',     # Another H.264 variant
+        'MJPG',     # Motion JPEG (fallback)
+    ]
+    
+    for codec in codecs:
+        try:
+            fourcc = cv2.VideoWriter_fourcc(*codec)
+            out = cv2.VideoWriter(output_path, fourcc, fps, (frame_width, frame_height))
+            
+            # Test if the writer is properly initialized
+            if out.isOpened():
+                print(f"Successfully initialized video writer with codec: {codec}")
+                return out
+            else:
+                out.release()
+        except Exception as e:
+            print(f"Failed to initialize with codec {codec}: {e}")
+            continue
+    
+    # If all else fails, try the default codec
+    print("All codecs failed, trying default codec...")
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    out = cv2.VideoWriter(output_path, fourcc, fps, (frame_width, frame_height))
+    
+    if not out.isOpened():
+        print("WARNING: Video writer could not be initialized with any codec!")
+    
+    return out
+
 #exercises 
 
 def analyze_push_ups(video_path, output_video_path=None):
@@ -268,9 +305,9 @@ def analyze_squats(video_path, output_video_path=None):
     fps = int(cap.get(cv2.CAP_PROP_FPS))
     
     # Setup output video writer if path is provided
+    out = None
     if output_video_path:
-        fourcc = cv2.VideoWriter_fourcc(*'avc1')
-        out = cv2.VideoWriter(output_video_path, fourcc, fps, (frame_width, frame_height))
+        out = setup_video_writer(output_video_path, fps, frame_width, frame_height)
     
     # Variables to track squat state
     squat_count = 0
@@ -396,11 +433,11 @@ def analyze_squats(video_path, output_video_path=None):
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)
                     
         # Write frame to output video
-        if output_video_path:
+        if output_video_path and out:
             out.write(annotated_image)
                 
     cap.release()
-    if output_video_path:
+    if output_video_path and out:
         out.release()
     
     # Only analyze if we have enough valid frames
@@ -4346,8 +4383,8 @@ def analyze_lunges(video_path, output_video_path=None):
             break
 
         img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        res     = pose_tracker.process(img_rgb)
-        out     = frame.copy()
+        res     = pose.process(img_rgb)
+        annotated_image = frame.copy()
 
         if res.pose_landmarks:
             good_frames += 1
@@ -4370,12 +4407,12 @@ def analyze_lunges(video_path, output_video_path=None):
             score     = max(0, min(1, (torso_ang - 150) / 30))
             torso_scores.append(score)
 
-            mp_drawing.draw_landmarks(out, res.pose_landmarks, mp_pose.POSE_CONNECTIONS)
+            mp_drawing.draw_landmarks(annotated_image, res.pose_landmarks, mp_pose.POSE_CONNECTIONS)
 
             kx, ky = normalized_to_pixel_coordinates(knee[0], knee[1], w, h)
-            cv2.putText(out, f"Knee: {knee_ang:.1f}°", (kx-40, ky+30),
+            cv2.putText(annotated_image, f"Knee: {knee_ang:.1f}°", (kx-40, ky+30),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,255), 2)
-            cv2.putText(out, f"Torso: {score*100:.0f}%", (10, 30),
+            cv2.putText(annotated_image, f"Torso: {score*100:.0f}%", (10, 30),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,0), 2)
 
             # rep detection
@@ -4386,10 +4423,10 @@ def analyze_lunges(video_path, output_video_path=None):
                 rep_count += 1
                 print(f"Lunge #{rep_count} @ knee {knee_ang:.1f}°")
 
-        cv2.putText(out, f"Lunges: {rep_count}", (10, h-30),
+        cv2.putText(annotated_image, f"Lunges: {rep_count}", (10, h-30),
                     cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0,0,255), 3)
         if writer:
-            writer.write(out)
+            writer.write(annotated_image)
 
     cap.release()
     if writer:
@@ -4597,9 +4634,3 @@ def analyze_glute_bridges(video_path, output_video_path=None):
         result["feedback"].append("Excellent hip extension!")
 
     return result
-
-
-
-
-
-

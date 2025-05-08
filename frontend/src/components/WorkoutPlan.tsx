@@ -1,27 +1,29 @@
-import React, { useState } from 'react';
-import { 
-  Box, 
-  Typography, 
-  Button, 
+import React, { useState } from "react";
+import {
+  Box,
+  Typography,
+  Button,
   TextField,
-  Paper, 
-  Tabs, 
-  Tab, 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableContainer, 
-  TableHead, 
+  Paper,
+  Tabs,
+  Tab,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
   TableRow,
   Alert,
   Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,
-  DialogTitle
-} from '@mui/material';
-import { Link } from 'react-router-dom';
-import AiInsights from './AiInsights';
+  DialogTitle,
+  Tooltip,
+} from "@mui/material";
+import { Link } from "react-router-dom";
+import AiInsights from "./AiInsights";
+import PlayCircleFilledIcon from "@mui/icons-material/PlayCircleFilled";
 
 // Define prop types
 interface Exercise {
@@ -44,7 +46,12 @@ interface WorkoutPlanProps {
   onSaveWorkout: (planName: string) => Promise<void> | void;
 }
 
-const WorkoutPlan: React.FC<WorkoutPlanProps> = ({ workoutDays, aiInsights, onCreateNewPlan, onSaveWorkout }) => {
+const WorkoutPlan: React.FC<WorkoutPlanProps> = ({
+  workoutDays,
+  aiInsights,
+  onCreateNewPlan,
+  onSaveWorkout,
+}) => {
   const [tabValue, setTabValue] = useState(0);
   const [planName, setPlanName] = useState("");
   const [showSaveDialog, setShowSaveDialog] = useState(false);
@@ -59,15 +66,15 @@ const WorkoutPlan: React.FC<WorkoutPlanProps> = ({ workoutDays, aiInsights, onCr
       try {
         // Call the provided save function, which may be async
         await onSaveWorkout(planName);
-        
+
         // Close dialog and show success message
         setShowSaveDialog(false);
         setSaveSuccess(true);
-        
+
         // Reset success message after 3 seconds
         setTimeout(() => setSaveSuccess(false), 3000);
       } catch (error) {
-        console.error('Error saving workout plan:', error);
+        console.error("Error saving workout plan:", error);
       }
     }
   };
@@ -75,14 +82,22 @@ const WorkoutPlan: React.FC<WorkoutPlanProps> = ({ workoutDays, aiInsights, onCr
   // Get workout descriptions based on the workout type
   const getWorkoutDescription = (workoutName: string) => {
     const descriptions: { [key: string]: string } = {
-      "Full Body": "This workout targets all major muscle groups for balanced total-body conditioning.",
-      "Upper Body": "Focus on developing strength and definition in your chest, back, shoulders, and arms.",
-      "Lower Body": "Build strong legs and glutes with these targeted lower body exercises.",
-      "HIIT & Cardio": "Elevate your heart rate and burn calories with these high-intensity movements.",
-      "Core & Mobility": "Strengthen your core and improve flexibility with these targeted exercises."
+      "Full Body":
+        "This workout targets all major muscle groups for balanced total-body conditioning.",
+      "Upper Body":
+        "Focus on developing strength and definition in your chest, back, shoulders, and arms.",
+      "Lower Body":
+        "Build strong legs and glutes with these targeted lower body exercises.",
+      "HIIT & Cardio":
+        "Elevate your heart rate and burn calories with these high-intensity movements.",
+      "Core & Mobility":
+        "Strengthen your core and improve flexibility with these targeted exercises.",
     };
-    
-    return descriptions[workoutName] || "A customized workout to help you reach your fitness goals.";
+
+    return (
+      descriptions[workoutName] ||
+      "A customized workout to help you reach your fitness goals."
+    );
   };
 
   const getWorkoutTips = (workoutName: string) => {
@@ -90,49 +105,51 @@ const WorkoutPlan: React.FC<WorkoutPlanProps> = ({ workoutDays, aiInsights, onCr
       "Full Body": [
         "Rest at least 48 hours before working the same muscle groups again",
         "Focus on compound movements that work multiple muscle groups",
-        "Adjust weights to challenge yourself while maintaining proper form"
+        "Adjust weights to challenge yourself while maintaining proper form",
       ],
       "Upper Body": [
         "Balance pushing and pulling movements for overall development",
         "Don't neglect the rear deltoids and upper back",
-        "For best results, keep your core engaged during all exercises"
+        "For best results, keep your core engaged during all exercises",
       ],
       "Lower Body": [
         "Drive through your heels on squats and lunges",
         "Keep your knees aligned with your toes on all exercises",
-        "Engage your glutes at the top of hip hinge movements"
+        "Engage your glutes at the top of hip hinge movements",
       ],
       "HIIT & Cardio": [
         "Focus on intensity during work intervals",
         "Control your breathing throughout the workout",
-        "Modify exercises as needed to match your fitness level"
+        "Modify exercises as needed to match your fitness level",
       ],
       "Core & Mobility": [
         "Focus on controlled movements rather than speed",
         "Breathe through the exercises and avoid holding your breath",
-        "Engage your core by pulling your navel toward your spine"
-      ]
+        "Engage your core by pulling your navel toward your spine",
+      ],
     };
-    
-    return tips[workoutName] || [
-      "Focus on proper form over heavy weights or high reps",
-      "Stay hydrated throughout your workout",
-      "Listen to your body and adjust as needed"
-    ];
+
+    return (
+      tips[workoutName] || [
+        "Focus on proper form over heavy weights or high reps",
+        "Stay hydrated throughout your workout",
+        "Listen to your body and adjust as needed",
+      ]
+    );
   };
 
   return (
-    <Box sx={{ width: '100%' }}>
+    <Box sx={{ width: "100%" }}>
       {saveSuccess && (
         <Alert severity="success" sx={{ mb: 3 }}>
           Workout plan saved successfully!
         </Alert>
       )}
-      
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs 
-          value={tabValue} 
-          onChange={handleTabChange} 
+
+      <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
+        <Tabs
+          value={tabValue}
+          onChange={handleTabChange}
           variant="scrollable"
           scrollButtons="auto"
           aria-label="workout days tabs"
@@ -142,7 +159,7 @@ const WorkoutPlan: React.FC<WorkoutPlanProps> = ({ workoutDays, aiInsights, onCr
           ))}
         </Tabs>
       </Box>
-      
+
       {workoutDays.map((day, index) => (
         <div
           key={index}
@@ -156,11 +173,11 @@ const WorkoutPlan: React.FC<WorkoutPlanProps> = ({ workoutDays, aiInsights, onCr
               <Typography variant="h4" gutterBottom>
                 {day.name} Workout
               </Typography>
-              
+
               <Typography variant="body1" paragraph>
                 {getWorkoutDescription(day.name)}
               </Typography>
-              
+
               <TableContainer component={Paper} sx={{ mb: 4 }}>
                 <Table aria-label="workout table">
                   <TableHead>
@@ -182,17 +199,43 @@ const WorkoutPlan: React.FC<WorkoutPlanProps> = ({ workoutDays, aiInsights, onCr
                         <TableCell align="center">{exercise.reps}</TableCell>
                         <TableCell align="center">{exercise.rest}</TableCell>
                         <TableCell align="center">
-                          <Link to={`/video/${index + 1}/${encodeURIComponent(exercise.name)}`}>
-                            Watch Video
-                          </Link>
+                          <Tooltip title="Watch & Record Exercise">
+                            <Button
+                              component={Link}
+                              to={`/video/${index + 1}/${encodeURIComponent(
+                                exercise.name
+                              )}`}
+                              variant="contained"
+                              color="primary"
+                              startIcon={<PlayCircleFilledIcon />}
+                              sx={{
+                                borderRadius: "24px",
+                                fontWeight: "bold",
+                                textTransform: "none",
+                                px: 2,
+                                py: 1,
+                                boxShadow: 2,
+                                fontSize: "1rem",
+                              }}
+                            >
+                              Watch & Record
+                            </Button>
+                          </Tooltip>
                         </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               </TableContainer>
-              
-              <Paper sx={{ p: 2, bgcolor: 'info.light', color: 'info.contrastText', mb: 4 }}>
+
+              <Paper
+                sx={{
+                  p: 2,
+                  bgcolor: "info.light",
+                  color: "info.contrastText",
+                  mb: 4,
+                }}
+              >
                 <Typography variant="h6" gutterBottom>
                   Workout Tips
                 </Typography>
@@ -208,24 +251,21 @@ const WorkoutPlan: React.FC<WorkoutPlanProps> = ({ workoutDays, aiInsights, onCr
           )}
         </div>
       ))}
-      
-      <Box sx={{ mt: 4, display: 'flex', justifyContent: 'space-between' }}>
-        <Button 
-          variant="contained" 
-          color="primary" 
+
+      <Box sx={{ mt: 4, display: "flex", justifyContent: "space-between" }}>
+        <Button
+          variant="contained"
+          color="primary"
           onClick={() => setShowSaveDialog(true)}
         >
           Save This Workout
         </Button>
-        
-        <Button 
-          variant="outlined" 
-          onClick={onCreateNewPlan}
-        >
+
+        <Button variant="outlined" onClick={onCreateNewPlan}>
           Create New Plan
         </Button>
       </Box>
-      
+
       {/* Save Workout Dialog */}
       <Dialog open={showSaveDialog} onClose={() => setShowSaveDialog(false)}>
         <DialogTitle>Save Workout Plan</DialogTitle>
