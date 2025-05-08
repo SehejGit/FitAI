@@ -18,16 +18,22 @@ export const fetchAvailableExercises = async (): Promise<string[]> => {
   try {
     // Check if we already have the exercises cached
     if (availableExercisesCache.length > 0) {
+      console.log('Using cached exercises:', availableExercisesCache);
       return availableExercisesCache;
     }
     
     // Fetch from the API
+    console.log('Fetching from API:', `${API_BASE_URL}/exercises/`);
     const response = await fetch(`${API_BASE_URL}/exercises/`);
+    
     if (!response.ok) {
+      console.error('API response not OK:', response.status, response.statusText);
       throw new Error(`Failed to fetch available exercises: ${response.status}`);
     }
     
     const data = await response.json();
+    console.log('API Response:', data);
+    
     const exercises = data.available_exercises || [];
     
     // Cache the result
@@ -37,6 +43,7 @@ export const fetchAvailableExercises = async (): Promise<string[]> => {
     return exercises;
   } catch (error) {
     console.error('Error fetching available exercises:', error);
+    console.log('Falling back to hardcoded list');
     // Return an empty array or fallback to hardcoded list
     return VIDEO_ANALYSIS_CONFIG.supportedExercises.map(ex => formatExerciseNameForApi(ex));
   }

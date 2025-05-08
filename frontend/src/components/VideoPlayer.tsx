@@ -73,7 +73,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = () => {
   const decodedExercise = exercise ? decodeURIComponent(exercise) : '';
   const formattedExercise = formatExerciseNameForApi(decodedExercise);
   const videoUrl = getExerciseVideoUrl(decodedExercise);
-  
+  console.log("REACT URL", process.env.REACT_APP_API_URL)
   // Fetch available exercises from API on component mount and check if current exercise is supported
   useEffect(() => {
     const fetchExercises = async () => {

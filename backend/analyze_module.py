@@ -1547,7 +1547,7 @@ def analyze_burpees(video_path, output_video_path=None):
         
     return feedback
 
-def analyze_bicycle_crunch(video_path, output_video_path=None):
+def analyze_bicycle_crunches(video_path, output_video_path=None):
     """
     Analyzes bicycle crunch form from a video using MediaPipe pose detection.
     
