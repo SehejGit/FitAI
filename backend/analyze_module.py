@@ -56,6 +56,43 @@ def detect_orientation(lm):
         return "front"
     return "right" if delta < 0 else "left"
 
+def setup_video_writer(output_path, fps, frame_width, frame_height):
+    """Try multiple codecs to ensure browser compatibility"""
+    
+    # List of codecs to try in order of preference
+    codecs = [
+        'mp4v',     # MPEG-4 codec (most compatible)
+        'XVID',     # Xvid MPEG-4 codec
+        'X264',     # H.264 codec
+        'avc1',     # Another H.264 variant
+        'MJPG',     # Motion JPEG (fallback)
+    ]
+    
+    for codec in codecs:
+        try:
+            fourcc = cv2.VideoWriter_fourcc(*codec)
+            out = cv2.VideoWriter(output_path, fourcc, fps, (frame_width, frame_height))
+            
+            # Test if the writer is properly initialized
+            if out.isOpened():
+                print(f"Successfully initialized video writer with codec: {codec}")
+                return out
+            else:
+                out.release()
+        except Exception as e:
+            print(f"Failed to initialize with codec {codec}: {e}")
+            continue
+    
+    # If all else fails, try the default codec
+    print("All codecs failed, trying default codec...")
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    out = cv2.VideoWriter(output_path, fourcc, fps, (frame_width, frame_height))
+    
+    if not out.isOpened():
+        print("WARNING: Video writer could not be initialized with any codec!")
+    
+    return out
+
 #exercises 
 
 def analyze_push_ups(video_path, output_video_path=None):
@@ -268,9 +305,9 @@ def analyze_squats(video_path, output_video_path=None):
     fps = int(cap.get(cv2.CAP_PROP_FPS))
     
     # Setup output video writer if path is provided
+    out = None
     if output_video_path:
-        fourcc = cv2.VideoWriter_fourcc(*'avc1')
-        out = cv2.VideoWriter(output_video_path, fourcc, fps, (frame_width, frame_height))
+        out = setup_video_writer(output_video_path, fps, frame_width, frame_height)
     
     # Variables to track squat state
     squat_count = 0
@@ -396,11 +433,11 @@ def analyze_squats(video_path, output_video_path=None):
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)
                     
         # Write frame to output video
-        if output_video_path:
+        if output_video_path and out:
             out.write(annotated_image)
                 
     cap.release()
-    if output_video_path:
+    if output_video_path and out:
         out.release()
     
     # Only analyze if we have enough valid frames
@@ -4597,9 +4634,3 @@ def analyze_glute_bridges(video_path, output_video_path=None):
         result["feedback"].append("Excellent hip extension!")
 
     return result
-
-
-
-
-
-
