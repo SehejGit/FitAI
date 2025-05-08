@@ -584,6 +584,7 @@ def create_workout_schedule_with_ai(exercises, days_per_week, time_per_session, 
     
     return workout_plan
 
+# Modify the save_workout function in main.py to include better logging
 @app.post("/api/save-workout")
 async def save_workout(workout: WorkoutPlan):
     """Save a workout plan"""
@@ -593,13 +594,19 @@ async def save_workout(workout: WorkoutPlan):
         workout_data = workout.dict()
         workout_data["id"] = workout_id
         
+        # Add detailed logging
+        print(f"Saving workout plan '{workout.name}' with ID {workout_id}")
+        print(f"Workout data: {workout_data}")
+        
         # Save the workout plan (in memory for this example)
         SAVED_WORKOUTS.append(workout_data)
         
         # Initialize workout logs for this plan
         WORKOUT_LOGS[workout.name] = []
         
-        print(f"Workout plan '{workout.name}' saved with ID {workout_id}")
+        # Print the current state of SAVED_WORKOUTS for debugging
+        print(f"Current SAVED_WORKOUTS: {SAVED_WORKOUTS}")
+        
         return {
             "success": True,
             "message": f"Workout plan '{workout.name}' saved successfully!",
@@ -608,20 +615,28 @@ async def save_workout(workout: WorkoutPlan):
     
     except Exception as e:
         print(f"Error saving workout plan: {str(e)}")
+        # Print the stack trace for better debugging
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
+# Modify the get_saved_workouts function to return just the array
 @app.get("/api/saved-workouts")
 async def get_saved_workouts():
     """Get all saved workout plans"""
     try:
         print(f"Returning {len(SAVED_WORKOUTS)} saved workout plans")
-        return {
-            "success": True,
-            "workouts": SAVED_WORKOUTS
-        }
+        # For debugging
+        print(f"SAVED_WORKOUTS contents: {SAVED_WORKOUTS}")
+        
+        # Return SAVED_WORKOUTS directly without wrapping it in an object
+        # This matches what the frontend expects
+        return SAVED_WORKOUTS
     
     except Exception as e:
         print(f"Error fetching saved workouts: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/workout/{workout_id}")
