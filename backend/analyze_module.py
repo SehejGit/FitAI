@@ -4423,8 +4423,7 @@ def analyze_calf_raises(video_path, output_video_path=None):
     fps  = cap.get(cv2.CAP_PROP_FPS)
     writer = None
     if output_video_path:
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        writer = cv2.VideoWriter(output_video_path, fourcc, fps, (w, h))
+        writer = setup_video_writer(output_video_path, fps, w, h)
 
     rep_count    = 0
     stage        = None   # "up" or "down"
@@ -4520,8 +4519,7 @@ def analyze_glute_bridges(video_path, output_video_path=None):
     fps  = cap.get(cv2.CAP_PROP_FPS)
     writer = None
     if output_video_path:
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        writer = cv2.VideoWriter(output_video_path, fourcc, fps, (w, h))
+        writer = setup_video_writer(output_video_path, fps, w, h)
 
     rep_count   = 0
     stage       = None   # "up" or "down"
