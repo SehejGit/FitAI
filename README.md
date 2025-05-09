@@ -5,7 +5,7 @@ A web application that analyzes exercise form from uploaded videos using compute
 
 ## Features
 
-- Upload videos of various exercises that involve upper body, lower body, full body, dumbbell exercises, core and gym equipment exercises
+- Upload videos of various exercises that involve upper body, lower body, full body, dumbbell exercises, core, and gym equipment exercises
 - Automatic exercise rep counting
 - Form analysis with metrics
 - Personalized feedback on technique
@@ -99,8 +99,6 @@ A web application that analyzes exercise form from uploaded videos using compute
 - `uploads/`: Directory for uploaded and processed videos
 
 ## License
-
-[Include license information here]
 
 ## Acknowledgments
 
