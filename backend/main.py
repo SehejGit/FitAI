@@ -1,3 +1,5 @@
+# backend/main.py
+# 
 import os
 import shutil
 import io
@@ -23,6 +25,27 @@ import analyze_module
 import openai
 from openai import OpenAI
 from secrets_manager import SecretManager
+import psutil
+import os
+
+# Detect Cloud Run environment
+CLOUD_ENV = os.environ.get("CLOUD_RUN", "false").lower() == "true"
+if CLOUD_ENV:
+    print("Running in Cloud Run environment - using optimized settings")
+    # More conservative settings for Cloud Run
+    FFMPEG_PRESET = "ultrafast"
+    FFMPEG_CRF = "30"
+    MAX_VIDEO_RESOLUTION = "640x480"  # Resize videos to smaller dimensions
+else:
+    print("Running in local environment - using standard settings")
+    FFMPEG_PRESET = "medium"
+    FFMPEG_CRF = "23"
+    MAX_VIDEO_RESOLUTION = "1280x720"
+
+def check_resources():
+    print(f"Memory usage: {psutil.virtual_memory().percent}%")
+    print(f"Available memory: {psutil.virtual_memory().available / (1024**3):.2f} GB")
+    print(f"CPU usage: {psutil.cpu_percent()}%")
 
 app = FastAPI(title="Fitness Buddy API")
 
@@ -153,39 +176,58 @@ EXERCISE_LIBRARY = {
 async def convert_video_for_browser(input_path: str, output_path: str) -> bool:
     """Convert video to browser-compatible format using FFmpeg"""
     try:
-        # FFmpeg command to create browser-compatible MP4
-        # Using H.264 codec with baseline profile for maximum compatibility
+        print(f"Starting FFmpeg conversion: input={input_path}, output={output_path}")
+        print(f"Input exists: {os.path.exists(input_path)}")
+        if os.path.exists(input_path):
+            print(f"Input size: {os.path.getsize(input_path)} bytes")
+        
+        # Cloud Run optimized FFmpeg command
         cmd = [
             'ffmpeg',
             '-i', input_path,                    # Input file
             '-c:v', 'libx264',                   # Use H.264 codec
             '-profile:v', 'baseline',            # Baseline profile for compatibility
             '-level', '3.0',                     # Level 3.0 for web compatibility
-            '-pix_fmt', 'yuv420p',              # Pixel format for web browsers
+            '-pix_fmt', 'yuv420p',               # Pixel format for web browsers
             '-movflags', '+faststart',           # Enable fast start for web playback
-            '-preset', 'fast',                   # Encoding speed preset
-            '-crf', '23',                        # Quality level (lower = better quality)
+        ]
+        
+        # Add resolution scaling for Cloud Run
+        if CLOUD_ENV:
+            cmd.extend(['-vf', f'scale={MAX_VIDEO_RESOLUTION.split("x")[0]}:{MAX_VIDEO_RESOLUTION.split("x")[1]}'])
+        
+        # Add remaining parameters
+        cmd.extend([
+            '-preset', FFMPEG_PRESET,            # Encoding speed preset (from env config)
+            '-crf', FFMPEG_CRF,                  # Quality level (from env config)
             '-y',                                # Overwrite output file
             output_path                          # Output file
-        ]
+        ])
+        
+        # Log the full command
+        print(f"FFmpeg command: {' '.join(cmd)}")
         
         # Run FFmpeg
         result = subprocess.run(cmd, capture_output=True, text=True)
         
+        # Full logging of output
+        print(f"FFmpeg return code: {result.returncode}")
+        print(f"FFmpeg stderr: {result.stderr}")
+        
         if result.returncode == 0:
-            print(f"Successfully converted video to browser-compatible format")
-            # Remove the original file if conversion was successful
-            if os.path.exists(input_path) and input_path != output_path:
-                os.remove(input_path)
+            print(f"FFmpeg success! Output exists: {os.path.exists(output_path)}")
+            if os.path.exists(output_path):
+                print(f"Output size: {os.path.getsize(output_path)} bytes")
             return True
         else:
-            print(f"FFmpeg conversion failed: {result.stderr}")
+            print(f"FFmpeg failed with code {result.returncode}")
             return False
             
     except Exception as e:
-        print(f"Error converting video: {e}")
+        print(f"Exception in FFmpeg conversion: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
         return False
-
 
 # Video analysis endpoints
 @app.post("/analyze/{exercise_type}/")
@@ -194,99 +236,146 @@ async def analyze_exercise_endpoint(
     file: UploadFile = File(..., description="MP4 video of the exercise"),
     return_video: bool = Query(False, description="Also return the annotated video")
 ):
-    # Check if the requested exercise type exists
-    exercise_normalized = exercise_type.replace(" ", "_").lower()
-    exercise_normalized = exercise_normalized.replace("-", "_")
+    exercise_normalized = exercise_type.replace(" ", "_").lower().replace("-", "_")
     print(f"Analyzing exercise type: {exercise_normalized}")
-    
+
     if exercise_normalized not in analysis_functions:
         raise HTTPException(
             status_code=404,
             detail=f"Exercise type '{exercise_normalized}' not found. Available types: {list(analysis_functions.keys())}"
         )
     
-    # Get the appropriate analysis function
     analysis_function = analysis_functions[exercise_normalized]
-    
-    # 1) Save the upload to disk with proper filename handling
-    safe_filename = file.filename.replace(" ", "_").lower()
-    safe_filename = safe_filename.replace("-", "_")
-    input_path = os.path.join(VIDEOS_DIR, safe_filename)
-    
+    result = None # Initialized as per your fix
+
+    # 1) Save the upload
+    safe_filename_input = file.filename.replace(" ", "_").lower().replace("-", "_")
+    input_path = os.path.join(VIDEOS_DIR, safe_filename_input)
     with open(input_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
-    
     print(f"Saved uploaded file to: {input_path}")
 
-    # 2) Build output path - store directly in VIDEOS_DIR
+    # Initialize paths for video processing
+    actual_video_path_from_analysis = None # Path of video created by analyze_module
+    final_browser_video_path = None        # Path of .mp4 video after browser conversion
+    final_browser_video_filename = None    # Filename for the browser-compatible video
+
     if return_video:
-        # Clean the base filename to avoid duplication
-        base_filename = safe_filename
-        if base_filename.lower().endswith('.mp4'):
-            base_filename = base_filename[:-4]  # Remove .mp4
-        elif base_filename.lower().endswith('.mov'):
-            base_filename = base_filename[:-4]  # Remove .mov
+        # Base name for output files, removing original extension
+        base_name_for_output = safe_filename_input.rsplit('.', 1)[0] if '.' in safe_filename_input else safe_filename_input
         
-        # Remove exercise_type from base_filename if it already contains it
-        # to avoid duplication like "annotated_plank_shoulder_taps_plank_shoulder_taps"
-        if exercise_normalized in base_filename:
-            # Remove the exercise type part if it exists
-            base_filename = base_filename.replace(exercise_normalized, "").strip("_")
+        # Path suggestion for the raw output from analyze_module.
+        # analyze_module might change the extension (e.g., FFmpeg forces .mp4).
+        # The key is that analyze_module returns the *actual* path it used.
+        # Let's suggest a .mov extension as per your original logic for the temp file.
+        suggested_raw_analysis_filename = f"temp_raw_analysis_{exercise_normalized}_{base_name_for_output}.mov"
+        suggested_raw_analysis_path = os.path.join(VIDEOS_DIR, suggested_raw_analysis_filename)
+
+        # Path for the final, browser-compatible MP4 video. This MUST be an .mp4 file.
+        final_browser_video_filename = f"annotated_{exercise_normalized}_{base_name_for_output}.mp4"
+        final_browser_video_path = os.path.join(VIDEOS_DIR, final_browser_video_filename)
         
-        # Use .mov extension for output
-        output_filename = f"annotated_{exercise_type}_{base_filename}.mp4"
-        temp_output_filename = f"temp_{output_filename}"
-        temp_output_path = os.path.join(VIDEOS_DIR, temp_output_filename)
-        
-        # Final output path after conversion
-        output_path = os.path.join(VIDEOS_DIR, output_filename)
-        
-        print(f"Output filename will be: {output_filename}")
-        print(f"Output path will be: {output_path}")
-    else:
-        output_filename = None
-        output_path = None
-    
+        print(f"Suggested path for raw analysis output by module: {suggested_raw_analysis_path}")
+        print(f"Target path for final browser-compatible MP4 video: {final_browser_video_path}")
+
     # 3) Run analysis
     try:
+        check_resources()
+        
         if return_video:
-            result = analysis_function(input_path, temp_output_path)
+            print(f"Calling analysis function with input: {input_path}, suggested output: {suggested_raw_analysis_path}")
+            result = analysis_function(input_path, suggested_raw_analysis_path)
             
-            # Convert the video for browser compatibility
-            if temp_output_path and os.path.exists(temp_output_path):
-                print(f"Temp file size: {os.path.getsize(temp_output_path)} bytes")
-                print("Converting video for browser compatibility...")
-                conversion_success = await convert_video_for_browser(temp_output_path, output_path)
-                
-                print(f"Conversion success: {conversion_success}")
-                if conversion_success and os.path.exists(output_path):
-                    print(f"Final file size: {os.path.getsize(output_path)} bytes")
-                
-                if not conversion_success:
-                    # If conversion fails, use the original file
-                    print("FFmpeg conversion failed, using original file")
-                    if os.path.exists(temp_output_path):
-                        os.rename(temp_output_path, output_path)
-                    else:
-                        result = analysis_function(input_path, None)
-    except Exception as e:
-        print(f"Error during analysis: {str(e)}")
-        # Clean up temp file if it exists
-        if temp_output_path and os.path.exists(temp_output_path):
-            os.remove(temp_output_path)
-        raise HTTPException(status_code=500, detail=f"Processing error: {str(e)}")
+            if result and isinstance(result, dict): # Ensure result is a dict
+                actual_video_path_from_analysis = result.get("output_video_path")
+                print(f"Analysis completed. Actual video from module at: {actual_video_path_from_analysis}")
 
-    # 4) Return JSON + video URL if requested
+                if actual_video_path_from_analysis and os.path.exists(actual_video_path_from_analysis):
+                    print(f"Raw analysis video size: {os.path.getsize(actual_video_path_from_analysis)} bytes")
+                    print(f"Attempting to convert '{actual_video_path_from_analysis}' to '{final_browser_video_path}' for browser compatibility...")
+                    
+                    conversion_success = await convert_video_for_browser(actual_video_path_from_analysis, final_browser_video_path)
+                    
+                    if conversion_success and os.path.exists(final_browser_video_path):
+                        print(f"Browser-compatible MP4 video successfully created: {final_browser_video_path}, size: {os.path.getsize(final_browser_video_path)} bytes")
+                        # If conversion created a new file and the raw analysis output is different, remove the raw one.
+                        if actual_video_path_from_analysis != final_browser_video_path:
+                            try:
+                                os.remove(actual_video_path_from_analysis)
+                                print(f"Removed intermediate raw analysis video: {actual_video_path_from_analysis}")
+                            except OSError as e:
+                                print(f"Warning: Failed to remove intermediate raw analysis video {actual_video_path_from_analysis}: {e}")
+                    else:
+                        print(f"FFmpeg conversion to browser-compatible MP4 failed or did not produce output at {final_browser_video_path}.")
+                        # Mark final_browser_video_path as None so fallback to raw video can occur if it exists
+                        final_browser_video_path = None 
+                else:
+                    print("Analysis module did not produce a video file, or the specified path was not found.")
+                    actual_video_path_from_analysis = None # Ensure it's None if not found
+            else:
+                print("Analysis function did not return a valid dictionary result.")
+                result = result or {} # Ensure result is a dict for error reporting
+                result["error"] = "Analysis function returned an unexpected result type."
+
+        else: # Not return_video
+            result = analysis_function(input_path, None)
+        
+        check_resources()
+
+    except Exception as e:
+        print(f"Error during analysis or video processing: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
+        # Clean up intermediate file if it exists and wasn't processed
+        if actual_video_path_from_analysis and os.path.exists(actual_video_path_from_analysis) and actual_video_path_from_analysis != final_browser_video_path :
+            try:
+                os.remove(actual_video_path_from_analysis)
+                print(f"Cleaned up intermediate file due to error: {actual_video_path_from_analysis}")
+            except OSError as err_clean:
+                print(f"Error during cleanup of {actual_video_path_from_analysis}: {err_clean}")
+        raise HTTPException(status_code=500, detail=f"Processing error: {str(e)}")
+    
+    finally: # Ensure input file is cleaned up
+        try:
+            if os.path.exists(input_path):
+                os.remove(input_path)
+                print(f"Cleaned up input file: {input_path}")
+        except Exception as cleanup_error:
+            print(f"Warning: Failed to clean up input file {input_path}: {cleanup_error}")
+    
+    if result is None: # Should ideally be caught by the try/except if analysis_function raises an error
+        raise HTTPException(status_code=500, detail="Analysis failed to produce results (result is None)")
+    if not isinstance(result, dict): # Ensure result is a dict before proceeding
+         return JSONResponse(content={"error": "Analysis produced an invalid result format."}, status_code=500)
+
     payload = {"analysis": result}
-    if return_video and output_path and os.path.exists(output_path):
-        # Use a relative URL path that will be served by the /videos static route
-        video_url = f"/videos/{output_filename}"
-        payload["annotated_video_url"] = video_url
-        print(f"Video URL provided: {video_url}")
-    elif return_video:
-        # If video was requested but doesn't exist
-        payload["error"] = "Annotated video could not be generated"
-        print("Error: Annotated video requested but not generated")
+    served_video_url = None
+
+    if return_video:
+        # Prefer the browser-converted MP4 file
+        if final_browser_video_path and os.path.exists(final_browser_video_path):
+            served_video_url = f"/videos/{final_browser_video_filename}"
+            print(f"Video to be served (browser-compatible MP4): {served_video_url} from {final_browser_video_path}")
+        # Fallback to the raw video from the analysis module if conversion failed but raw exists
+        elif actual_video_path_from_analysis and os.path.exists(actual_video_path_from_analysis):
+            raw_analysis_filename = os.path.basename(actual_video_path_from_analysis)
+            served_video_url = f"/videos/{raw_analysis_filename}"
+            # Ensure 'analysis' key exists and is a dict
+            if "analysis" not in payload or not isinstance(payload["analysis"], dict):
+                 payload["analysis"] = {}
+            payload["analysis"]["video_warning"] = "Video could not be fully optimized for browser; serving raw analysis output. Playback issues may occur."
+            print(f"Video to be served (raw from analysis module - conversion failed): {served_video_url} from {actual_video_path_from_analysis}")
+        else:
+            # Ensure 'analysis' key exists and is a dict
+            if "analysis" not in payload or not isinstance(payload["analysis"], dict):
+                 payload["analysis"] = {}
+            current_error = payload["analysis"].get("error", "")
+            additional_error = "Annotated video was requested but could not be generated or found."
+            payload["analysis"]["error"] = f"{current_error} {additional_error}".strip()
+            print("Error: Annotated video requested, but no usable video file was found after processing.")
+
+        if served_video_url:
+            payload["annotated_video_url"] = served_video_url
     
     return JSONResponse(content=payload)
 

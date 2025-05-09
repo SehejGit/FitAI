@@ -1,7 +1,11 @@
+# analyze_module.py
 import mediapipe as mp
 import cv2
 import numpy as np
 import math
+import subprocess
+import tempfile
+import os
 
 # Initialize MediaPipe Pose
 mp_pose = mp.solutions.pose
@@ -93,6 +97,62 @@ def setup_video_writer(output_path, fps, frame_width, frame_height):
     
     return out
 
+def encode_with_ffmpeg(frames, output_path, fps):
+    """Encode frames using FFmpeg subprocess when OpenCV fails"""
+    
+    # Create temp directory for frames
+    with tempfile.TemporaryDirectory() as temp_dir:
+        print(f"Created temporary directory: {temp_dir}")
+        frame_count = 0
+        
+        # Save frames as images
+        for i, frame in enumerate(frames):
+            frame_path = os.path.join(temp_dir, f"frame_{i:06d}.jpg")
+            cv2.imwrite(frame_path, frame)
+            frame_count += 1
+            
+            # Log progress every 100 frames
+            if i % 100 == 0:
+                print(f"Saved {i} frames to temp directory")
+        
+        print(f"Saved {frame_count} frames to {temp_dir}")
+        
+        # Force .mp4 extension for output
+        if not output_path.lower().endswith('.mp4'):
+            output_path = output_path.rsplit('.', 1)[0] + '.mp4'
+        
+        # Use FFmpeg to create video from frames
+        cmd = [
+            'ffmpeg',
+            '-y',  # Overwrite output file if it exists
+            '-framerate', str(fps),
+            '-i', os.path.join(temp_dir, 'frame_%06d.jpg'),
+            '-c:v', 'libx264',
+            '-preset', 'ultrafast',  # Use fastest encoding
+            '-pix_fmt', 'yuv420p',
+            output_path
+        ]
+        
+        print(f"Running FFmpeg command: {' '.join(cmd)}")
+        
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            success = result.returncode == 0
+            
+            if success:
+                print(f"FFmpeg successfully created video at {output_path}")
+                print(f"Output file exists: {os.path.exists(output_path)}")
+                if os.path.exists(output_path):
+                    print(f"Output file size: {os.path.getsize(output_path)} bytes")
+                return True, output_path
+            else:
+                print(f"FFmpeg failed with return code {result.returncode}")
+                print(f"FFmpeg stderr: {result.stderr}")
+                return False, None
+        except Exception as e:
+            print(f"FFmpeg exception: {str(e)}")
+            return False, None
+
 #exercises 
 
 def analyze_push_ups(video_path, output_video_path=None):
@@ -106,16 +166,57 @@ def analyze_push_ups(video_path, output_video_path=None):
     Returns:
         dict: Analysis results including pushup count, form metrics, and feedback
     """
+    print("DEFINITELY NEW CODE VERSION RUNNING - 2025-05-09 9:30pm")
     cap = cv2.VideoCapture(video_path)
     frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = int(cap.get(cv2.CAP_PROP_FPS))
     
+    # For FFmpeg fallback - store all frames
+    all_frames = []
+    
     # Setup output video writer if path is provided
     if output_video_path:
-        # Changed from 'mp4v' to 'avc1' for MOV format
-        fourcc = cv2.VideoWriter_fourcc(*'avc1')
-        out = cv2.VideoWriter(output_video_path, fourcc, fps, (frame_width, frame_height))
+        # Try multiple codecs in order of preference
+        codecs_to_try = [
+            ('XVID', '.avi'),
+            ('MJPG', '.avi'),
+            ('X264', '.mp4'),
+            ('mp4v', '.mp4'),
+            ('avc1', '.mov')
+        ]
+        
+        video_created = False
+        
+        for codec, ext in codecs_to_try:
+            try:
+                # Update extension based on codec
+                if not output_video_path.lower().endswith(ext):
+                    new_path = output_video_path.rsplit('.', 1)[0] + ext
+                else:
+                    new_path = output_video_path
+                    
+                print(f"Trying codec {codec} with path {new_path}")
+                fourcc = cv2.VideoWriter_fourcc(*codec)
+                out = cv2.VideoWriter(new_path, fourcc, fps, (frame_width, frame_height))
+                
+                if out.isOpened():
+                    print(f"Successfully opened VideoWriter with codec {codec}")
+                    output_video_path = new_path
+                    video_created = True
+                    break
+                else:
+                    print(f"Failed to open VideoWriter with codec {codec}")
+            except Exception as e:
+                print(f"Error with codec {codec}: {str(e)}")
+        
+        if not video_created:
+            print("All codecs failed, will use FFmpeg fallback later")
+            opencv_output = False
+        else:
+            opencv_output = True
+    else:
+        opencv_output = False
     
     # Variables to track pushup state
     pushup_count = 0
@@ -130,6 +231,7 @@ def analyze_push_ups(video_path, output_video_path=None):
     # Add debugging info
     print(f"Video dimensions: {frame_width}x{frame_height}, FPS: {fps}")
     
+    frame_count = 0
     while cap.isOpened():
         success, image = cap.read()
         if not success:
@@ -235,14 +337,49 @@ def analyze_push_ups(video_path, output_video_path=None):
         # Display pushup count
         cv2.putText(annotated_image, f'Pushups: {pushup_count}', (10, 100), 
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)
-                    
-        # Write frame to output video
+        
+        # Store frame for FFmpeg fallback
         if output_video_path:
-            out.write(annotated_image)
+            all_frames.append(annotated_image.copy())
+                    
+        # Write frame to output video using OpenCV
+        if opencv_output:
+            try:
+                out.write(annotated_image)
+                frame_count += 1
+                if frame_count % 100 == 0:
+                    print(f"Processed {frame_count} frames")
+            except Exception as e:
+                print(f"Error writing frame: {e}")
+                opencv_output = False  # Disable OpenCV output on error
                 
     cap.release()
-    if output_video_path:
-        out.release()
+    
+    # Clean up VideoWriter
+    if opencv_output:
+        try:
+            out.release()
+            print(f"VideoWriter released. Path: {output_video_path}")
+            if os.path.exists(output_video_path):
+                print(f"Output file exists and is {os.path.getsize(output_video_path)} bytes")
+            else:
+                print(f"Output file doesn't exist after release")
+                opencv_output = False
+        except Exception as e:
+            print(f"Error releasing VideoWriter: {e}")
+            opencv_output = False
+    
+    # Try FFmpeg fallback if OpenCV failed
+    final_output_path = output_video_path
+    if output_video_path and not opencv_output and all_frames:
+        print(f"Trying FFmpeg fallback with {len(all_frames)} frames")
+        success, new_path = encode_with_ffmpeg(all_frames, output_video_path, fps)
+        if success:
+            final_output_path = new_path
+            print(f"FFmpeg successful, final output at: {final_output_path}")
+        else:
+            print("FFmpeg fallback also failed")
+            final_output_path = None
     
     # Only analyze if we have enough valid frames
     if good_frames < 10:
@@ -270,7 +407,8 @@ def analyze_push_ups(video_path, output_video_path=None):
             "body_alignment_score": avg_alignment * 100,
             "frames_analyzed": good_frames
         },
-        "feedback": []
+        "feedback": [],
+        "output_video_path": final_output_path  # Add the actual path that worked
     }
     
     # Add specific feedback based on measurements

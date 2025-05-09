@@ -1,9 +1,12 @@
+# requirements.txt
 fastapi
+psutil==5.9.5
 uvicorn
 python-multipart
 numpy
 opencv-python-headless
 mediapipe
+ffmpeg-python
 google-cloud-storage
 pydantic
 reportlab

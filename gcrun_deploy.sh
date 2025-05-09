@@ -19,20 +19,23 @@ gcloud auth configure-docker
 
 # Build and push directly to GCR
 echo "Building and pushing Docker image..."
-docker build --platform linux/amd64 -t gcr.io/fitai-459007/fitai-backend:cloudrun .
+docker build --no-cache --platform linux/amd64 -t gcr.io/fitai-459007/fitai-backend:forceupdate .
 
-docker push gcr.io/fitai-459007/fitai-backend:cloudrun
+docker push gcr.io/fitai-459007/fitai-backend:forceupdate
 
 # deployment
 gcloud run deploy fitai-backend \
-  --image gcr.io/fitai-459007/fitai-backend:cloudrun \
+  --image gcr.io/fitai-459007/fitai-backend:forceupdate \
   --platform managed \
   --region us-central1 \
   --memory 2Gi \
   --cpu 4 \
   --timeout 1800 \
   --concurrency 80 \
-  --set-env-vars="OPENAI_API_KEY=sk-proj--iEHpvzJQpgJLfqQeSAA" \
+  --set-secrets="OPENAI_API_KEY=openai-api-key-tyler:latest" \
+  --set-env-vars="CLOUD_RUN=true" \
   --allow-unauthenticated
+
+#   --set-env-vars="CLOUD_RUN=true" \
 
 echo "Deployment successful!"
