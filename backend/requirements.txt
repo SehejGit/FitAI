@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+python-multipart
+numpy
+opencv-python-headless
+mediapipe
+google-cloud-storage
+pydantic
+reportlab
+streamlit
+openai
+google-cloud-secret-manager

@@ -6,6 +6,10 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import UserInfoForm from './components/UserInfoForm';
 import WorkoutPlan from './components/WorkoutPlan';
 import VideoPlayer from './components/VideoPlayer';
+import NavigationBar from './components/NavigationBar';
+import SavedWorkouts from './components/SavedWorkouts';
+import { saveWorkoutPlan } from './services/workoutService';
+import AiWorkoutForm from './components/AiWorkoutForm';
 
 // Define types for our exercise library
 type ExerciseArea = 'upper' | 'lower' | 'core' | 'full_body' | 'cardio';
@@ -75,6 +79,8 @@ const App: React.FC = () => {
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [workoutPlan, setWorkoutPlan] = useState<WorkoutDay[] | null>(null);
   const [showWorkout, setShowWorkout] = useState<boolean>(false);
+  const [aiInsights, setAiInsights] = useState<any>(null);
+  const [useAiGeneration, setUseAiGeneration] = useState<boolean>(false);
 
   const determineExercises = (equipment: string[], fitnessGoal: string, fitnessLevel: string, injuries: string) => {
     const hasInjuries = injuries.trim() !== "";
@@ -197,7 +203,7 @@ const App: React.FC = () => {
       formData.equipment = ["None (bodyweight only)"];
     }
     
-    // Generate the workout plan
+    // Generate the workout plan using regular logic
     const selectedExercises = determineExercises(
       formData.equipment,
       formData.fitnessGoal,
@@ -213,15 +219,26 @@ const App: React.FC = () => {
     );
     
     setWorkoutPlan(workoutPlan);
+    setAiInsights(null); // Clear any previous AI insights
+    setShowWorkout(true);
+  };
+
+  const handleAiGenerateWorkout = (aiGeneratedPlan: WorkoutDay[], insights: any) => {
+    setWorkoutPlan(aiGeneratedPlan);
+    setAiInsights(insights);
+    setUseAiGeneration(true);
     setShowWorkout(true);
   };
 
   const handleResetWorkout = () => {
     setShowWorkout(false);
+    setUseAiGeneration(false);
+    setAiInsights(null);
   };
 
   return (
     <Router>
+      <NavigationBar />
       <Container maxWidth="lg" className="App">
         <Box sx={{ my: 4, textAlign: 'center' }}>
           <Typography variant="h2" component="h1" gutterBottom>
@@ -235,11 +252,53 @@ const App: React.FC = () => {
         <Routes>
           <Route path="/" element={
             !showWorkout ? (
-              <UserInfoForm onGenerateWorkout={handleGenerateWorkout} />
+              <Box>
+                <UserInfoForm onGenerateWorkout={handleGenerateWorkout} />
+                
+                {/* Add AI workout generation option if user has filled the form */}
+                {/* {userInfo && (
+                  <Box sx={{ mt: 3 }}>
+                    <Typography variant="h6" gutterBottom sx={{ textAlign: 'center' }}>
+                      Or generate an AI-enhanced workout plan
+                    </Typography>
+                    <AiWorkoutForm 
+                      userInfo={userInfo} 
+                      onGenerateWorkout={handleAiGenerateWorkout} 
+                    />
+                  </Box>
+                )} */}
+              </Box>
             ) : (
               <WorkoutPlan 
                 workoutDays={workoutPlan || []} 
+                aiInsights={aiInsights}
                 onCreateNewPlan={handleResetWorkout} 
+                onSaveWorkout={async (planName) => {
+                  try {
+                    // Format the workout data according to your API's expected structure
+                    const workoutData = {
+                      name: planName,
+                      date_created: new Date().toISOString().split('T')[0], // YYYY-MM-DD format
+                      workout_plan: workoutPlan || [],
+                      user_data: {
+                        ...(userInfo || {}),
+                        equipment: userInfo?.equipment || ["None (bodyweight only)"],
+                        fitness_goal: userInfo?.fitnessGoal || "General Fitness",
+                        fitness_level: userInfo?.fitnessLevel || "Beginner"
+                      },
+                      time_per_session: userInfo?.timePerSession || 30
+                    };
+                    
+                    // Call your API to save the workout
+                    const result = await saveWorkoutPlan(workoutData);
+                    console.log('Workout saved successfully:', result);
+                    
+                    // Show success message (you already have this UI)
+                  } catch (error) {
+                    console.error('Error saving workout:', error);
+                    // Optionally show an error message to the user
+                  }
+                }}
               />
             )
           } />
@@ -247,6 +306,7 @@ const App: React.FC = () => {
           <Route path="/video/:day/:exercise" element={<VideoPlayer />} />
           
           <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="/saved-workouts" element={<SavedWorkouts />} />
         </Routes>
       </Container>
     </Router>
