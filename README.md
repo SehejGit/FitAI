@@ -9,7 +9,7 @@ A web application that analyzes exercise form from uploaded videos using compute
 - Automatic exercise rep counting
 - Form analysis with metrics
 - Personalized feedback on technique
-- Annotated output video with pose estimation
+- Annotated output video with pose estimation     
 
 ## Installation
 
