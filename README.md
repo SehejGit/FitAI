@@ -6,7 +6,11 @@
 
 FitAI is an end-to-end fitness analysis platform that combines computer vision, pose estimation, and machine learning to deliver automated exercise form assessment. The system processes uploaded videos through a sophisticated analysis pipeline, providing users with detailed metrics, rep counting, and actionable feedback to improve their workout technique.
 
-**🌐 Live Demo:** [https://fitai-459007.web.app/](https://fitai-459007.web.app/)
+**🌐 Live Demo:** [https://fitai-459007.web.app/](https://fitai-459007.web.app/)  
+
+## 🎬 Demo Video
+
+![FitAI Demo](demo/Demo.gif)
 
 **Key Differentiators:**
 - Real-time pose estimation and biomechanical analysis
